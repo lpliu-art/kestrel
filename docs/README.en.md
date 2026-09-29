@@ -5,7 +5,7 @@
 
 [中文](README.md) · Design docs (Chinese): [research](01-research.md) · [concept](02-concept.md) · [technical design](03-technical-design.md) · [architecture](04-architecture.md) · [implementation plan](05-implementation-plan.md) · [repo layout](06-repo-layout.md)
 
-> ⚠️ Status: 0.3.0 (P2) is implemented in this repository. These docs remain the design spec. Kestrel is a community project and is **not affiliated with TypeSafe AI**. Real reviews need a TypeSafe API key; access is governed by TypeSafe's own policy. The LLM narrator is off by default and reads `KESTREL_LLM_API_KEY`.
+> ⚠️ Status: 0.4.0 (P3) is implemented in this repository. These docs remain the design spec. Kestrel is a community project and is **not affiliated with TypeSafe AI**. Real reviews need a TypeSafe API key; access is governed by TypeSafe's own policy. The LLM narrator is off by default and reads `KESTREL_LLM_API_KEY`. To calibrate with a real Jev key, see [07-calibrate.en.md](07-calibrate.en.md).
 
 ## Why Kestrel
 
@@ -174,7 +174,7 @@ A language plugin is an npm package (`kestrel-plugin-<lang>`) that exports a `Ke
 1. **MVP (0.1):** CLI, rule packs for 4 languages, mock/replay/typesafe providers, terminal/JSON/Markdown/SARIF output, merge gate, and the skill.
 2. **P1:** tree-sitter, GitHub Action and PR comments, filtering of static-tool SARIF, team checks.
 3. **P2:** LLM narrator, deeper React/Vue support, Rust/C#, GitLab.
-4. **P3:** evaluation and threshold calibration, session viewer, single binary.
+4. **P3 (0.4.0):** evaluation and threshold calibration, guardrail comparison, session viewer, single binary, llm-shim, OpenTelemetry, and `--explore`.
 
 See the [implementation plan](05-implementation-plan.md) for details.
 

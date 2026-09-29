@@ -1,0 +1,31 @@
+{
+  "name": "aacr-shaped-sample",
+  "license": "Apache-2.0",
+  "upstream": "https://github.com/alibaba/aacr-bench",
+  "notes": [
+    "These hunks were written for Kestrel. They use the AACR comment fields plus an embedded hunk so the harness can score them offline. They are not rows from the upstream dataset."
+  ],
+  "samples": [
+    {
+      "id": "sample-sql",
+      "project_main_language": "TypeScript",
+      "path": "src/user.ts",
+      "note": "SQL is concatenated with a request value.",
+      "label": 1,
+      "hunk": "export function getUser(id: string) {\n  const sql = \"SELECT * FROM users WHERE id = \" + id;\n  return sql;\n}\n",
+      "kestrel": { "ruleId": "ts.security.sql-string-concat", "positive": true }
+    },
+    {
+      "id": "sample-bound",
+      "project_main_language": "TypeScript",
+      "path": "src/bound.ts",
+      "note": "The query uses a bound parameter.",
+      "label": 0,
+      "hunk": "export function getUser(id: string) {\n  return db.query(\"SELECT * FROM users WHERE id = $1\", [id]);\n}\n",
+      "kestrel": {
+        "ruleId": "ts.security.sql-string-concat",
+        "positive": false
+      }
+    }
+  ]
+}

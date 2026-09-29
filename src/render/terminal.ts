@@ -6,13 +6,20 @@ const MOCK_BANNER = {
   en: "MOCK — not an AI judgment; for tests and demos only",
 } as const;
 
+const DEGRADED_BANNER = {
+  "zh-CN": "DEGRADED — 答案由 LLM 模拟，不是 Jev，也不是校准判断",
+  en: "DEGRADED — answers were simulated by an LLM, not by Jev. This is not a calibrated judgment.",
+} as const;
+
 export function renderTerminal(
   report: Report,
   showUncertain: "hidden" | "collapsed" | "expanded",
 ): string {
   const zh = report.run.language === "zh-CN";
   const lines: string[] = [];
-  if (
+  if (report.provider.name === "llm-shim") {
+    lines.push(pc.yellow(pc.bold(DEGRADED_BANNER[report.run.language])));
+  } else if (
     report.provider.name === "mock" ||
     (report.provider.name === "replay" && !report.provider.isAI)
   ) {

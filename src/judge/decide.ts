@@ -31,13 +31,31 @@ export function thresholdsFor(
   };
 }
 
+export interface FusionWeights {
+  bias: number;
+  main: number;
+  guard: number;
+}
+
 export function effectiveProbability(
   pMain: number,
   guards: Array<{ p: number; weight: number }>,
+  fusion?: FusionWeights,
 ): number {
-  let value = pMain;
-  for (const guard of guards) value *= (1 - guard.p) ** guard.weight;
-  return round6(value);
+  if (!fusion) {
+    let value = pMain;
+    for (const guard of guards) value *= (1 - guard.p) ** guard.weight;
+    return round6(value);
+  }
+  const mean =
+    guards.length === 0
+      ? 0
+      : guards.reduce((sum, guard) => sum + guard.p, 0) / guards.length;
+  const z = Math.max(
+    -30,
+    Math.min(30, fusion.bias + fusion.main * pMain + fusion.guard * mean),
+  );
+  return round6(1 / (1 + Math.exp(-z)));
 }
 
 export function bandFor(

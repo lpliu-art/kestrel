@@ -1,8 +1,14 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Language, Parser, type Tree } from "web-tree-sitter";
 
-const require = createRequire(import.meta.url);
+function moduleRequire(): NodeRequire {
+  const url = import.meta.url;
+  if (typeof url === "string" && url.length > 0) return createRequire(url);
+  return createRequire(process.execPath);
+}
 
 interface GrammarSpec {
   pkg: string;
@@ -34,6 +40,14 @@ let initPromise: Promise<void> | undefined;
 const languages = new Map<string, Language | null>();
 const warnings: string[] = [];
 let forcedFailure: string | undefined;
+let wasmReader: ((name: string) => Uint8Array | undefined) | undefined;
+
+export function setWasmReaderForTests(
+  reader: ((name: string) => Uint8Array | undefined) | undefined,
+): void {
+  wasmReader = reader;
+  resetTreesitterForTests();
+}
 
 export function grammarIds(): string[] {
   return Object.keys(GRAMMARS);
@@ -82,7 +96,7 @@ async function loadAll(): Promise<void> {
     return;
   }
   try {
-    await Parser.init();
+    await initParser();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     for (const id of Object.keys(GRAMMARS)) languages.set(id, null);
@@ -94,8 +108,7 @@ async function loadAll(): Promise<void> {
   }
   for (const [id, spec] of Object.entries(GRAMMARS)) {
     try {
-      const wasmPath = require.resolve(`${spec.pkg}/${spec.file}`);
-      const language = await Language.load(readFileSync(wasmPath));
+      const language = await Language.load(await grammarBytes(spec));
       languages.set(id, language);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -106,6 +119,46 @@ async function loadAll(): Promise<void> {
     }
   }
   state = "ready";
+}
+
+async function initParser(): Promise<void> {
+  const wasm = await readWasm("tree-sitter.wasm");
+  if (!wasm) {
+    await Parser.init();
+    return;
+  }
+  const dest = join(tmpdir(), "kestrel-sea", "tree-sitter.wasm");
+  mkdirSync(join(tmpdir(), "kestrel-sea"), { recursive: true });
+  writeFileSync(dest, wasm);
+  await Parser.init({ locateFile: () => dest });
+}
+
+async function grammarBytes(spec: GrammarSpec): Promise<Uint8Array> {
+  const injected = wasmReader?.(spec.file);
+  if (injected) return injected;
+  const fromSea = await seaAsset(spec.file);
+  if (fromSea) return fromSea;
+  return readFileSync(moduleRequire().resolve(`${spec.pkg}/${spec.file}`));
+}
+
+async function readWasm(name: string): Promise<Uint8Array | undefined> {
+  const injected = wasmReader?.(name);
+  if (injected) return injected;
+  return seaAsset(name);
+}
+
+async function seaAsset(name: string): Promise<Uint8Array | undefined> {
+  try {
+    const sea = moduleRequire()("node:sea") as {
+      isSea?: () => boolean;
+      getAsset?: (key: string) => ArrayBuffer;
+    };
+    if (!sea.isSea?.()) return undefined;
+    const asset = sea.getAsset?.(name);
+    return asset ? new Uint8Array(asset) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function parseLanguage(

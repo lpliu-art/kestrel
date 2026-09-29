@@ -10,7 +10,7 @@ export const findingSchema = z
     fingerprint: z.string(),
     ruleId: z.string(),
     pluginId: z.string(),
-    source: z.enum(["rule", "deterministic"]),
+    source: z.enum(["rule", "deterministic", "explore"]),
     category: z.string(),
     severity,
     band: z.enum(["report", "uncertain"]),

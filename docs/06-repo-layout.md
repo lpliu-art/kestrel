@@ -67,7 +67,8 @@ kestrel/                                 # github.com/lpliu-art/kestrel
 │   │   ├── budget.ts / cache.ts / rate-limit.ts
 │   │   ├── tokens.ts                    ceil(utf8Bytes/3.5) 估算
 │   │   ├── factory.ts                   按配置组装装饰器链
-│   │   └── llm-shim.ts                  [P3]
+│   │   ├── llm-shim.ts                  [P3] 降级 provider，不是 Jev
+│   │   └── (otel 在 src/otel/)          [P3]
 │   ├── judge/                           [MVP]
 │   │   ├── pass1.ts / pass2.ts
 │   │   ├── decide.ts                    p_eff、分档、严重度映射

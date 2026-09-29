@@ -23,7 +23,9 @@ export const userConfigSchema = z
     version: z.literal(1).optional(),
     jev: z
       .object({
-        provider: z.enum(["typesafe", "http", "mock", "replay"]).optional(),
+        provider: z
+          .enum(["typesafe", "http", "mock", "replay", "llm-shim"])
+          .optional(),
         model: z.string().optional(),
         baseURL: z.string().nullable().optional(),
         timeoutMs: z.number().int().positive().optional(),
@@ -227,7 +229,7 @@ export interface RuleOverride {
 export interface ResolvedConfig {
   version: 1;
   jev: {
-    provider: "typesafe" | "http" | "mock" | "replay";
+    provider: "typesafe" | "http" | "mock" | "replay" | "llm-shim";
     model: string;
     baseURL?: string;
     timeoutMs: number;

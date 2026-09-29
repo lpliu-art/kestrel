@@ -7,6 +7,7 @@ import { KestrelError } from "../util/errors.ts";
 import { BudgetGuard } from "./budget.ts";
 import { FileCache, withCache } from "./cache.ts";
 import { createHttpProvider } from "./http.ts";
+import { createLlmShimProvider } from "./llm-shim.ts";
 import { createMockProvider } from "./mock.ts";
 import { RateLimiter, withRateLimit } from "./rate-limit.ts";
 import {
@@ -119,6 +120,13 @@ async function createInner(
       ? createMockProvider(options.rules)
       : undefined;
     return createReplayProvider(entries, fallback);
+  }
+  if (name === "llm-shim") {
+    return createLlmShimProvider({
+      config: options.config,
+      env: options.env,
+      fetchImpl: options.fetchImpl,
+    });
   }
   if (name === "http") {
     return createHttpProvider({

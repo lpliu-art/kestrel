@@ -1,6 +1,6 @@
 {
   "name": "kestrel-review",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Fast, calibrated, plugin-based code review. Judgments from TypeSafe Jev; comments from rule templates.",
   "type": "module",
   "license": "Apache-2.0",

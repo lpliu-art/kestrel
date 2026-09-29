@@ -489,6 +489,28 @@ describe("incremental review", () => {
     expect(forced.warning).toMatch(/not an ancestor/);
     expect(forced.since).toBeUndefined();
   });
+
+  it("limits a workspace review to commits after the stored head", async () => {
+    const cwd = await initRepo();
+    await write(cwd, "src/a.ts", "export const a = 1;\n");
+    git(cwd, ["add", "src/a.ts"]);
+    git(cwd, ["commit", "-m", "a"]);
+    await writeIncremental(cwd, git(cwd, ["rev-parse", "HEAD"]).trim());
+    await write(cwd, "src/b.ts", "export const b = 1;\n");
+    git(cwd, ["add", "src/b.ts"]);
+    git(cwd, ["commit", "-m", "b"]);
+    const review = await runReview({
+      cwd,
+      mode: "workspace",
+      incremental: true,
+      provider: "mock",
+      providerExplicit: true,
+      noCache: true,
+      lang: "en",
+      env: cleanEnv(cwd),
+    });
+    expect(review.report.files.map((file) => file.path)).toEqual(["src/b.ts"]);
+  });
 });
 
 describe("gitlab post", () => {

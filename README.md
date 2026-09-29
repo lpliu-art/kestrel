@@ -5,7 +5,7 @@
 
 [English](README.en.md) · [调研](docs/01-research.md) · [概念](docs/02-concept.md) · [技术方案](docs/03-technical-design.md) · [架构图](docs/04-architecture.md) · [实施计划](docs/05-implementation-plan.md) · [目录结构](docs/06-repo-layout.md)
 
-> 状态：0.3.0（P2）。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。真实评审需要 `TYPESAFE_API_KEY`。没有密钥时请使用 `--provider mock`（结果不是 AI 判断）。
+> 状态：0.4.0（P3）。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。真实评审需要 `TYPESAFE_API_KEY`。没有密钥时请使用 `--provider mock`（结果不是 AI 判断）。mock 校准数字不是 Jev 的数字。
 
 ## 为什么是 Kestrel
 
@@ -70,6 +70,9 @@ kestrel review --incremental --from main
 kestrel review --llm
 kestrel github post --report kestrel.json --pr 1 --sticky --event auto
 kestrel gitlab post --report kestrel.json --project group/app --mr 1
+kestrel eval eval/internal/dataset.json --provider mock --calibrate
+kestrel view --report kestrel.json
+kestrel review --explore
 kestrel rules test
 kestrel rules lint
 kestrel rules show team.api.validate-body --config .kestrel.yml
@@ -77,7 +80,7 @@ kestrel rules show team.api.validate-body --config .kestrel.yml
 
 退出码：`0` 通过 · `1` 门禁失败 · `2` 用法或配置错误 · `3` Provider / 鉴权错误 · `4` 部分完成且带了 `--strict`（`github post` 在 API 失败且带 `--strict` 时也是 4）。
 
-配置文件是 `.kestrel.yml`，环境变量是 `KESTREL_PROVIDER`、`KESTREL_MODEL`、`KESTREL_PROFILE`、`KESTREL_LANG`、`TYPESAFE_API_KEY` 和 `KESTREL_LLM_API_KEY`。叙述器还接受 `llm.protocol`（`openai` 或 `anthropic`）、`llm.baseURL` 和 `llm.model`。示例见 `examples/.kestrel.yml`。
+配置文件是 `.kestrel.yml`，环境变量是 `KESTREL_PROVIDER`、`KESTREL_MODEL`、`KESTREL_PROFILE`、`KESTREL_LANG`、`TYPESAFE_API_KEY` 和 `KESTREL_LLM_API_KEY`。叙述器、`--explore` 和 `llm-shim` 还接受 `llm.protocol`（`openai` 或 `anthropic`）、`llm.baseURL` 和 `llm.model`。`llm-shim` 不是默认，输出标成 DEGRADED，判断不是 Jev。OpenTelemetry 在设置 `--otel` 或 `OTEL_EXPORTER_OTLP_ENDPOINT` 时导出，不附带代码。用真实 Jev 校准见 [docs/07-calibrate.md](docs/07-calibrate.md)。示例见 `examples/.kestrel.yml`。
 
 ### 团队检查与静态告警
 

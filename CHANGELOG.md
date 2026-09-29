@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+Phase P3. `kestrel eval` scores a labeled set and proposes profile thresholds. Mock output is marked as not from Jev and is not applied to the shipped thresholds. A live run is `kestrel eval eval/internal/dataset.json --provider typesafe --calibrate`. Logistic fusion is compared with the heuristic `p_eff`. Shipped judgments stay on the heuristic. `kestrel view` writes a static HTML session viewer. `--explore` keeps LLM suspects only after a Jev `x.support` check. `llm-shim` is an opt-in degraded provider, not Jev. OpenTelemetry export is optional and omits source text. A Node SEA build script and a three-OS workflow produce a binary. On Node 22 the entry is CommonJS, so web-tree-sitter's wasm init falls back to the heuristic and regex triggers; the binary still reviews.
+
+Question compiler: explore adds an `x.support` question. Existing rule question text is unchanged. Enabling explore adds requests.
+
 ## 0.3.0
 
 Phase P2. Optional LLM narrator (OpenAI-compatible `/chat/completions` and Anthropic `/v1/messages`, fetch only, off by default). It rewrites template comment text after a Jev check (`v.addresses`, `v.unrelated`, `v.contradicts`) and falls back to the template on any error. React and Vue rule packs, Rust and C# plugins, `kestrel scan`, `kestrel gitlab post`, incremental review, and a pull-request risk / test-gap conclusion.

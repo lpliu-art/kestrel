@@ -81,6 +81,8 @@ export function createMockProvider(rules: LoadedRule[]): JevProvider {
             type: "noul",
             noul: pullRequestProbability(key, req),
           };
+        } else if (key === "x.support") {
+          answers[key] = { type: "noul", noul: exploreSupport(req) };
         } else if (question.type === "choice") {
           answers[key] = choiceAnswer(question, "other");
         } else if (question.type === "score") {
@@ -100,6 +102,17 @@ export function createMockProvider(rules: LoadedRule[]): JevProvider {
       };
     },
   };
+}
+
+function exploreSupport(req: JevRequest): number {
+  let issue = "";
+  if (req.state && typeof req.state === "object" && !Array.isArray(req.state)) {
+    const value = req.state.issue;
+    if (typeof value === "string") issue = value;
+  }
+  const tokens = issue.toLowerCase().match(/[a-z0-9_]{4,}/g) ?? [];
+  const hay = hunkText(req).toLowerCase();
+  return tokens.some((token) => hay.includes(token)) ? 0.86 : 0.12;
 }
 
 function pullRequestProbability(key: string, req: JevRequest): number {

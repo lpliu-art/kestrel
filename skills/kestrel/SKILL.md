@@ -9,7 +9,7 @@ license: Apache-2.0
 compatibility: >
   Requires Node.js >= 22 and the `kestrel` CLI (`npm i -g kestrel-review` or `npx -y kestrel-review`).
   Real reviews need TYPESAFE_API_KEY; without it, only `--provider mock` works and results are NOT AI judgments.
-metadata: { homepage: "https://github.com/lpliu-art/kestrel", version: "0.3.0" }
+metadata: { homepage: "https://github.com/lpliu-art/kestrel", version: "0.4.0" }
 ---
 
 # Kestrel review
@@ -43,3 +43,5 @@ Fix critical/high items first; re-run Step 1 with the same target to confirm fin
 - Exit code 3: provider/auth error → ask the user to set TYPESAFE_API_KEY; never invent keys.
 - `kestrel explain <id> --report /tmp/kestrel.json` shows the Jev questions and probabilities behind a finding. `kestrel explain pr --report /tmp/kestrel.json` shows the pull-request conclusion.
 - Whole-file audit: `kestrel scan <paths> --provider mock` when there is no git diff. Incremental review: `kestrel review --incremental --from <base>`.
+- Calibration: `kestrel eval eval/internal/dataset.json --provider mock` is offline and is not a Jev measurement. A live run is `kestrel eval eval/internal/dataset.json --provider typesafe --calibrate` when `TYPESAFE_API_KEY` is set.
+- Do not pass `--explore` or `--provider llm-shim` unless the user asks. Explore adds findings only after Jev agrees. llm-shim is a degraded stand-in, not Jev.
