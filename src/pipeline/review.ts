@@ -6,6 +6,7 @@ import {
 } from "../config/defaults.ts";
 import { type LoadConfigInput, loadConfig } from "../config/load.ts";
 import type { ResolvedConfig } from "../config/schema.ts";
+import { runExplore } from "../explore/run.ts";
 import {
   type DiffMode,
   type DiffSet,
@@ -28,6 +29,7 @@ import { decideVerdict, reviewExitCode } from "../judge/verdict.ts";
 import { detectLanguage } from "../lang/detect.ts";
 import { reviewSlices } from "../lang/vue-sfc.ts";
 import { narrateFindings } from "../narrate/run.ts";
+import { exportTelemetry } from "../otel/export.ts";
 import { loadPlugins } from "../plugins/loader.ts";
 import { renderJson } from "../render/json.ts";
 import { renderMarkdown } from "../render/markdown.ts";
@@ -54,7 +56,11 @@ import type { JsonValue } from "../util/json.ts";
 import { round6 } from "../util/json.ts";
 import { toolVersion } from "../util/package.ts";
 import { mapPool } from "../util/pool.ts";
-import { deterministicFindings, judgeUnit } from "./judge-unit.ts";
+import {
+  deterministicFindings,
+  judgeUnit,
+  type RequestTrace,
+} from "./judge-unit.ts";
 import { questionsForPass, requestsFor } from "./questions.ts";
 import { buildReviewState } from "./state.ts";
 
@@ -92,6 +98,8 @@ export interface ReviewOptions {
   sarifIn?: string[];
   logPayload?: boolean;
   llm?: boolean;
+  explore?: boolean;
+  otel?: string;
   incremental?: boolean;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
@@ -107,6 +115,7 @@ export interface ReviewResult {
   json: string;
   sarif: string;
   markdown: string;
+  traces: RequestTrace[];
 }
 
 interface PlannedUnit {
@@ -201,7 +210,7 @@ export async function runReview(
         0,
       ),
     });
-    return finish(report, options, config);
+    return finish(report, options, config, []);
   }
 
   const built = await buildProvider({
@@ -227,6 +236,7 @@ export async function runReview(
   let providerSuccesses = 0;
   let attempted = 0;
   let partial = false;
+  const traces: RequestTrace[] = [];
   const judgements = await mapPool(
     planned.units,
     config.jev.concurrency,
@@ -261,6 +271,7 @@ export async function runReview(
           providerSuccesses += 1;
           if (judged.degraded) partial = true;
         }
+        traces.push(...judged.traces);
         await session?.write({
           type: "unit",
           unitId: item.unit.id,
@@ -270,6 +281,24 @@ export async function runReview(
           model: judged.model ?? null,
           ...(options.logPayload ? { state: item.state } : {}),
         });
+        for (const [index, trace] of judged.traces.entries()) {
+          const request = judged.requests[index];
+          await session?.write({
+            type: "request",
+            unitId: trace.unitId,
+            path: trace.path,
+            pass: trace.pass,
+            questionKeys: trace.questionKeys,
+            answers: trace.answers,
+            usage: trace.usage,
+            latencyMs: trace.latencyMs,
+            model: trace.model,
+            cached: trace.cached,
+            ...(options.logPayload
+              ? { state: item.state, questions: request?.questions ?? null }
+              : {}),
+          });
+        }
         return judged;
       } catch (error) {
         providerFailures += 1;
@@ -342,11 +371,36 @@ export async function runReview(
     fetchImpl: options.fetchImpl,
   });
   if (narrated.warning) warnings.push(narrated.warning);
+  const languages = new Map(
+    planned.files.map((file) => [file.path, file.language]),
+  );
+  const reportPaths = new Set(
+    narrated.findings
+      .filter((finding) => finding.band === "report")
+      .map((finding) => finding.location.path),
+  );
+  let published = narrated.findings;
+  if (options.explore) {
+    const explored = await runExplore({
+      files: fileRisks(risks, languages, reportPaths).filter(
+        (file) => file.deepReview,
+      ),
+      units: planned.units,
+      provider: built.provider,
+      model: config.jev.model,
+      llm: config.llm,
+      env,
+      language: config.output.language,
+      fetchImpl: options.fetchImpl,
+    });
+    if (explored.warning) warnings.push(explored.warning);
+    published = [...narrated.findings, ...explored.findings];
+  }
   const report = assemble({
     config,
     diff,
     planned,
-    findings,
+    findings: published,
     warnings,
     started,
     durationMs: Math.max(0, Date.now() - startedMs),
@@ -364,13 +418,24 @@ export async function runReview(
   if (options.incremental && report.run.status === "ok" && diff.head) {
     await writeIncremental(cwd, diff.head);
   }
-  return finish(report, options, config);
+  const endpoint = options.otel || env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  if (endpoint) {
+    const failure = await exportTelemetry({
+      endpoint,
+      traces,
+      report,
+      fetchImpl: options.fetchImpl,
+    });
+    if (failure) report.warnings.push(failure);
+  }
+  return finish(report, options, config, traces);
 }
 
 function finish(
   report: Report,
   options: ReviewOptions,
   config: ResolvedConfig,
+  traces: RequestTrace[],
 ): ReviewResult {
   const show = options.showUncertain ?? config.output.showUncertain;
   return {
@@ -385,6 +450,7 @@ function finish(
       includeUncertain: options.sarifIncludeUncertain ?? false,
     }),
     markdown: renderMarkdown(report, show),
+    traces,
   };
 }
 

@@ -145,6 +145,8 @@
 
 ## 4. P3 —— 评测、校准与形态
 
+> 状态：0.4.0 已在本仓库实现。内置标注集可离线用 mock 跑通；报告会标明这些数字不是 Jev 的数字，并且拒绝把 mock 提案写进画像阈值。AACR-Bench 许可证为 Apache-2.0，上游 JSON 只有提交指针、没有 diff，因此仓库不收录那 1.6MB 文件，只提供目录加载器和一份带 hunk 的样例。`--explore` 在技术方案 §3.10 标为 P3，不在下面的表里，本阶段一并实现。单二进制：Node 22.14 的 SEA 入口只能跑 CommonJS。Linux 产物 `dist/sea/kestrel` 可以执行 `--version` 和 mock scan；web-tree-sitter 0.25 在初始化时调用 `createRequire(import.meta.url)`，CJS 包里这个 URL 是空的，所以语法 wasm 没有装上，自动退回启发式和正则（scan 仍能报出规则）。macOS / Windows 由 `.github/workflows/binaries.yml` 在对应系统上构建，本环境不能运行那些产物，同一限制也会出现。
+
 | # | 任务 | 验收标准 |
 |---|---|---|
 | P3-1 | `kestrel eval <dataset>`：precision/recall/F1、按规则的可靠性曲线（calibration plot）、阈值搜索 | 在内部标注集 + 公开集（如 AACR-Bench，⚠️ 先确认许可证）上输出报告；profiles 阈值按结果更新并记录 |

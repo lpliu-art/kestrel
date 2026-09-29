@@ -5,7 +5,7 @@
 
 [中文](README.md) · [research](docs/01-research.md) · [concept](docs/02-concept.md) · [technical design](docs/03-technical-design.md) · [architecture](docs/04-architecture.md) · [implementation plan](docs/05-implementation-plan.md) · [layout](docs/06-repo-layout.md)
 
-> Status: 0.3.0 (P2). Kestrel is a community project and is **not affiliated with TypeSafe AI**. A real review needs `TYPESAFE_API_KEY`. Without a key, use `--provider mock`. Those results are not AI judgments.
+> Status: 0.4.0 (P3). Kestrel is a community project and is **not affiliated with TypeSafe AI**. A real review needs `TYPESAFE_API_KEY`. Without a key, use `--provider mock`. Those results are not AI judgments. Mock calibration numbers are not Jev numbers.
 
 ## Why Kestrel
 
@@ -70,6 +70,9 @@ kestrel review --incremental --from main
 kestrel review --llm
 kestrel github post --report kestrel.json --pr 1 --sticky --event auto
 kestrel gitlab post --report kestrel.json --project group/app --mr 1
+kestrel eval eval/internal/dataset.json --provider mock --calibrate
+kestrel view --report kestrel.json
+kestrel review --explore
 kestrel rules test
 kestrel rules lint
 kestrel rules show team.api.validate-body --config .kestrel.yml
@@ -77,7 +80,7 @@ kestrel rules show team.api.validate-body --config .kestrel.yml
 
 Exit codes: `0` pass, `1` gate failed, `2` usage or config error, `3` provider or auth error, `4` partial run with `--strict` (also a failed `github post --strict` or `gitlab post --strict`).
 
-Configuration is `.kestrel.yml`. Environment variables are `KESTREL_PROVIDER`, `KESTREL_MODEL`, `KESTREL_PROFILE`, `KESTREL_LANG`, `TYPESAFE_API_KEY`, and `KESTREL_LLM_API_KEY`. The narrator also reads `llm.protocol` (`openai` or `anthropic`), `llm.baseURL`, and `llm.model`. See `examples/.kestrel.yml`.
+Configuration is `.kestrel.yml`. Environment variables are `KESTREL_PROVIDER`, `KESTREL_MODEL`, `KESTREL_PROFILE`, `KESTREL_LANG`, `TYPESAFE_API_KEY`, and `KESTREL_LLM_API_KEY`. The narrator, `--explore`, and `llm-shim` also read `llm.protocol` (`openai` or `anthropic`), `llm.baseURL`, and `llm.model`. `llm-shim` is not the default. Its output is marked DEGRADED and is not a Jev judgment. OpenTelemetry exports when `--otel` or `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and it does not attach source code. To calibrate with a real Jev key, see [docs/07-calibrate.en.md](docs/07-calibrate.en.md). See `examples/.kestrel.yml`.
 
 ### Team checks and static alerts
 

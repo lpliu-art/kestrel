@@ -1,0 +1,81 @@
+{
+  "name": "kestrel-internal",
+  "kind": "internal",
+  "notes": [
+    "Hand-labeled positive and negative cases for the built-in rules. A mock run of this file is not a Jev measurement."
+  ],
+  "cases": [
+    {
+      "id": "ts-sql-positive",
+      "path": "src/user.ts",
+      "source": "export function getUser(id: string) {\n  const sql = \"SELECT * FROM users WHERE id = \" + id;\n  return sql;\n}\n",
+      "labels": [{ "ruleId": "ts.security.sql-string-concat", "positive": true }]
+    },
+    {
+      "id": "ts-sql-negative",
+      "path": "src/safe-user.ts",
+      "source": "export function getUser(id: string) {\n  return db.query(\"SELECT * FROM users WHERE id = $1\", [id]);\n}\n",
+      "labels": [{ "ruleId": "ts.security.sql-string-concat", "positive": false }]
+    },
+    {
+      "id": "py-sql-positive",
+      "path": "app/query.py",
+      "source": "def get_user(user_id):\n    cursor.execute(f\"SELECT * FROM t WHERE id={user_id}\")\n",
+      "labels": [{ "ruleId": "py.security.sql-format", "positive": true }]
+    },
+    {
+      "id": "py-sql-negative",
+      "path": "app/safe_query.py",
+      "source": "def get_user(user_id):\n    cursor.execute(\"SELECT * FROM t WHERE id=%s\", (user_id,))\n",
+      "labels": [{ "ruleId": "py.security.sql-format", "positive": false }]
+    },
+    {
+      "id": "java-sql-positive",
+      "path": "src/Query.java",
+      "source": "class Query {\n  void get(String id) {\n    stmt.executeQuery(\"SELECT * FROM t WHERE id = \" + id);\n  }\n}\n",
+      "labels": [{ "ruleId": "java.security.sql-concat", "positive": true }]
+    },
+    {
+      "id": "java-sql-negative",
+      "path": "src/SafeQuery.java",
+      "source": "class SafeQuery {\n  void get(String id) {\n    ps.setString(1, id);\n  }\n}\n",
+      "labels": [{ "ruleId": "java.security.sql-concat", "positive": false }]
+    },
+    {
+      "id": "go-error-positive",
+      "path": "main.go",
+      "source": "package main\n\nfunc read(name string) {\n  data, _ := os.ReadFile(name)\n  _ = data\n}\n",
+      "labels": [{ "ruleId": "go.errors.ignored", "positive": true }]
+    },
+    {
+      "id": "go-error-negative",
+      "path": "safe.go",
+      "source": "package main\n\nfunc read(name string) error {\n  data, err := os.ReadFile(name)\n  if err != nil { return err }\n  _ = data\n  return nil\n}\n",
+      "labels": [{ "ruleId": "go.errors.ignored", "positive": false }]
+    },
+    {
+      "id": "rust-unwrap-positive",
+      "path": "src/lib.rs",
+      "source": "fn load(path: &str) -> String {\n    std::fs::read_to_string(path).unwrap()\n}\n",
+      "labels": [{ "ruleId": "rust.safety.unwrap", "positive": true }]
+    },
+    {
+      "id": "rust-unwrap-negative",
+      "path": "src/safe.rs",
+      "source": "fn load(path: &str) -> Result<String, std::io::Error> {\n    std::fs::read_to_string(path)\n}\n",
+      "labels": [{ "ruleId": "rust.safety.unwrap", "positive": false }]
+    },
+    {
+      "id": "cs-async-positive",
+      "path": "App.cs",
+      "source": "class App {\n  async void Run() { await Task.Delay(1); }\n}\n",
+      "labels": [{ "ruleId": "csharp.async.async-void", "positive": true }]
+    },
+    {
+      "id": "cs-async-negative",
+      "path": "SafeApp.cs",
+      "source": "class SafeApp {\n  async Task Run() { await Task.Delay(1); }\n}\n",
+      "labels": [{ "ruleId": "csharp.async.async-void", "positive": false }]
+    }
+  ]
+}

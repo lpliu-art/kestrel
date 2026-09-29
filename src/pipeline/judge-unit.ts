@@ -24,11 +24,24 @@ import type { JsonValue } from "../util/json.ts";
 import { clampSeverity } from "../util/severity.ts";
 import { questionsForPass, requestsFor } from "./questions.ts";
 
+export interface RequestTrace {
+  pass: 1 | 2;
+  unitId: string;
+  path: string;
+  questionKeys: string[];
+  answers: Record<string, JevAnswer>;
+  usage: { input_tokens: number; output_tokens: number };
+  latencyMs: number;
+  model: string;
+  cached: boolean;
+}
+
 export interface UnitJudgement {
   findings: Finding[];
   dimensions: Record<string, number>;
   priority: number;
   requests: JevRequest[];
+  traces: RequestTrace[];
   skipped?: "budget";
   failed: boolean;
   degraded?: boolean;
@@ -67,7 +80,8 @@ export async function judgeUnit(input: {
   });
   const pass1 = requestsFor(input.model, input.state, pass1Questions);
   const asked: JevRequest[] = [];
-  const pass1Result = await askRequests(pass1, input, asked);
+  const traces: RequestTrace[] = [];
+  const pass1Result = await askRequests(pass1, input, asked, traces, 1);
   if (pass1Result === "budget") {
     return {
       findings: deterministicFindings(
@@ -79,6 +93,7 @@ export async function judgeUnit(input: {
       dimensions: {},
       priority: 0,
       requests: asked,
+      traces,
       skipped: "budget",
       failed: false,
     };
@@ -94,6 +109,7 @@ export async function judgeUnit(input: {
       dimensions: {},
       priority: 0,
       requests: asked,
+      traces,
       failed: true,
     };
   }
@@ -116,7 +132,7 @@ export async function judgeUnit(input: {
     pass: 2,
   });
   const pass2 = requestsFor(input.model, input.state, pass2Questions);
-  const pass2Result = await askRequests(pass2, input, asked);
+  const pass2Result = await askRequests(pass2, input, asked, traces, 2);
   let pass2Answers: Record<string, JevAnswer> = {};
   if (pass2Result === "budget") {
     const findings = [
@@ -133,6 +149,7 @@ export async function judgeUnit(input: {
       dimensions: dimensionValues(answers),
       priority: priorityScore(answers),
       requests: asked,
+      traces,
       skipped: "budget",
       failed: false,
       model,
@@ -159,6 +176,7 @@ export async function judgeUnit(input: {
     dimensions: dimensionValues(answers),
     priority: priorityScore(answers),
     requests: asked,
+    traces,
     failed: false,
     degraded: pass2Failed,
     model,
@@ -200,6 +218,8 @@ async function askRequests(
     onRateLimit?: () => void;
   },
   asked: JevRequest[],
+  traces: RequestTrace[],
+  pass: 1 | 2,
 ): Promise<
   { answers: Record<string, JevAnswer>; model?: string } | "budget" | "fail"
 > {
@@ -212,12 +232,24 @@ async function askRequests(
     if (!input.budget.canSpend(estimate))
       return sawSuccess ? { answers, model } : "budget";
     try {
+      const started = Date.now();
       const response = await input.provider.ask(request);
       input.budget.spend(response.usage.input_tokens || estimate);
       Object.assign(answers, response.answers);
       model = response.model;
       sawSuccess = true;
       asked.push(request);
+      traces.push({
+        pass,
+        unitId: input.unit.id,
+        path: input.unit.path,
+        questionKeys: Object.keys(request.questions),
+        answers: response.answers,
+        usage: response.usage,
+        latencyMs: Math.max(0, Date.now() - started),
+        model: response.model,
+        cached: Boolean(response.meta?.cached),
+      });
     } catch (error) {
       if (isKestrelError(error) && error.category === "auth") throw error;
       if (isKestrelError(error) && error.category === "rate")

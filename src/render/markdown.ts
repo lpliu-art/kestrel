@@ -6,7 +6,14 @@ export function renderMarkdown(
 ): string {
   const zh = report.run.language === "zh-CN";
   const lines: string[] = ["<!-- kestrel:summary -->", ""];
-  if (
+  if (report.provider.name === "llm-shim") {
+    lines.push(
+      zh
+        ? "> **DEGRADED — 答案由 LLM 模拟，不是 Jev，也不是校准判断**"
+        : "> **DEGRADED — answers were simulated by an LLM, not by Jev. This is not a calibrated judgment.**",
+    );
+    lines.push("");
+  } else if (
     report.provider.name === "mock" ||
     (report.provider.name === "replay" && !report.provider.isAI)
   ) {

@@ -15,7 +15,8 @@
             "typesafe",
             "http",
             "mock",
-            "replay"
+            "replay",
+            "llm-shim"
           ]
         },
         "model": {

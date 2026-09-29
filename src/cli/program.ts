@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { Command, CommanderError } from "commander";
 import { CONFIG_TEMPLATE } from "../config/defaults.ts";
 import { loadConfig, maskConfig } from "../config/load.ts";
+import { renderEval, runEval } from "../eval/run.ts";
 import { FileCache } from "../jev/cache.ts";
 import { missingKeyMessage } from "../jev/factory.ts";
 import { type ReviewOptions, runReview } from "../pipeline/review.ts";
@@ -13,6 +14,7 @@ import { testRules } from "../rules/test-runner.ts";
 import { isKestrelError, KestrelError } from "../util/errors.ts";
 import { stableStringify } from "../util/json.ts";
 import { toolVersion } from "../util/package.ts";
+import { writeViewer } from "../view/html.ts";
 
 export const program = new Command();
 program.exitOverride();
@@ -25,6 +27,7 @@ program
 
 const formats = ["terminal", "json", "sarif", "markdown"] as const;
 type Format = (typeof formats)[number];
+const providers = ["typesafe", "http", "mock", "replay", "llm-shim"] as const;
 
 program
   .command("review")
@@ -34,7 +37,7 @@ program
   .option("--commit <rev>", "Review one commit")
   .option("--from <rev>", "Review from the merge-base with this revision")
   .option("--to <rev>", "Head revision for --from (default HEAD)")
-  .option("--provider <name>", "typesafe | http | mock | replay")
+  .option("--provider <name>", providers.join(" | "))
   .option("--model <model>")
   .option("--profile <name>", "chill | balanced | assertive")
   .option("--lang <lang>", "zh-CN | en")
@@ -77,6 +80,11 @@ program
   .option("--log-payload", "Store raw state in the session log")
   .option("--llm", "Enable the optional LLM narrator")
   .option(
+    "--explore",
+    "Ask an LLM for suspects on deep-review files and keep those Jev supports",
+  )
+  .option("--otel <url>", "Export OTLP traces to this HTTP endpoint")
+  .option(
     "--incremental",
     "Review only commits since the last successful incremental run",
   )
@@ -86,10 +94,7 @@ program
       (formats as readonly string[]).includes(item),
     );
     const provider = opts.provider as ReviewOptions["provider"] | undefined;
-    if (
-      provider &&
-      !["typesafe", "http", "mock", "replay"].includes(provider)
-    ) {
+    if (provider && !providers.includes(provider)) {
       fail(2, `Invalid --provider ${provider}`);
     }
     const result = await runReview({
@@ -130,6 +135,8 @@ program
       sarifIn: (opts.sarifIn as string[] | undefined) ?? [],
       logPayload: Boolean(opts.logPayload),
       llm: Boolean(opts.llm),
+      explore: Boolean(opts.explore),
+      otel: opts.otel as string | undefined,
       incremental: Boolean(opts.incremental),
       configPath: opts.config as string | undefined,
       tty: Boolean(process.stdout.isTTY),
@@ -168,7 +175,7 @@ program
   .command("scan")
   .description("Audit whole files as virtual all-added units")
   .argument("<paths...>")
-  .option("--provider <name>", "typesafe | http | mock | replay")
+  .option("--provider <name>", providers.join(" | "))
   .option("--model <model>")
   .option("--profile <name>", "chill | balanced | assertive")
   .option("--lang <lang>", "zh-CN | en")
@@ -182,6 +189,11 @@ program
   .option("--budget-tokens <n>", "Input-token budget", parseIntArg)
   .option("--no-cache", "Disable the response cache")
   .option("--llm", "Enable the optional LLM narrator")
+  .option(
+    "--explore",
+    "LLM suspects on deep-review files, kept only when Jev agrees",
+  )
+  .option("--otel <url>", "Export OTLP traces to this HTTP endpoint")
   .option("--gate", "Exit 1 when the verdict is request_changes")
   .option("--config <path>")
   .action(async (paths: string[], opts: Record<string, unknown>) => {
@@ -189,10 +201,7 @@ program
       (formats as readonly string[]).includes(item),
     );
     const provider = opts.provider as ReviewOptions["provider"] | undefined;
-    if (
-      provider &&
-      !["typesafe", "http", "mock", "replay"].includes(provider)
-    ) {
+    if (provider && !providers.includes(provider)) {
       fail(2, `Invalid --provider ${provider}`);
     }
     const result = await runReview({
@@ -209,6 +218,8 @@ program
       budgetTokens: opts.budgetTokens as number | undefined,
       noCache: opts.cache === false,
       llm: Boolean(opts.llm),
+      explore: Boolean(opts.explore),
+      otel: opts.otel as string | undefined,
       configPath: opts.config as string | undefined,
       tty: Boolean(process.stdout.isTTY),
       ci: process.env.CI === "true",
@@ -583,6 +594,59 @@ gitlab
       `gitlab post: comments=${result.postedComments} duplicates=${result.skippedDuplicates}\n`,
     );
     process.exitCode = result.exitCode;
+  });
+
+program
+  .command("eval")
+  .description(
+    "Score a labeled dataset and propose report thresholds. Mock numbers are not Jev numbers.",
+  )
+  .argument("<dataset>", "Path to a dataset JSON/YAML file")
+  .option("--provider <name>", providers.join(" | "))
+  .option("--model <model>")
+  .option("--calibrate", "Include threshold and fusion proposals")
+  .option(
+    "--apply",
+    "Record a live proposal as applied. Mock runs refuse to change thresholds.",
+  )
+  .option("--out <file>", "Write the JSON report")
+  .action(async (dataset: string, opts: Record<string, unknown>) => {
+    const provider = opts.provider as ReviewOptions["provider"] | undefined;
+    if (provider && !providers.includes(provider)) {
+      fail(2, `Invalid --provider ${provider}`);
+    }
+    const report = await runEval({
+      datasetPath: dataset,
+      cwd: process.cwd(),
+      provider: provider ?? "mock",
+      model: opts.model as string | undefined,
+      env: process.env,
+      calibrate: Boolean(opts.calibrate),
+      apply: Boolean(opts.apply),
+    });
+    const text = renderEval(report);
+    process.stdout.write(text);
+    if (opts.out) {
+      await writeFile(
+        opts.out as string,
+        `${JSON.stringify(report, null, 2)}\n`,
+      );
+    }
+  });
+
+program
+  .command("view")
+  .description("Write a static HTML viewer for session logs and a JSON report")
+  .option("--sessions <dir>", "Session directory", ".kestrel/sessions")
+  .option("--report <file>", "JSON report from kestrel review")
+  .option("--out <file>", "HTML output", ".kestrel/view.html")
+  .action(async (opts: { sessions: string; report?: string; out: string }) => {
+    const path = await writeViewer({
+      sessionDir: resolve(process.cwd(), opts.sessions),
+      reportPath: opts.report ? resolve(process.cwd(), opts.report) : undefined,
+      outPath: resolve(process.cwd(), opts.out),
+    });
+    process.stdout.write(`wrote ${path}\n`);
   });
 
 cache.command("clear").action(async () => {

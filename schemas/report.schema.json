@@ -271,7 +271,8 @@
             "type": "string",
             "enum": [
               "rule",
-              "deterministic"
+              "deterministic",
+              "explore"
             ]
           },
           "category": {
