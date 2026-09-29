@@ -121,13 +121,13 @@ export function parseUnifiedDiff(input: string): ChangedFile[] {
       continue;
     }
     if (line.startsWith("--- ")) {
-      const path = stripPrefix(line.slice(4));
+      const path = stripPrefix(pathBeforeTab(line.slice(4)));
       if (path === "/dev/null") draft.sawDevNullOld = true;
       else draft.oldPath = path;
       continue;
     }
     if (line.startsWith("+++ ")) {
-      const path = stripPrefix(line.slice(4));
+      const path = stripPrefix(pathBeforeTab(line.slice(4)));
       if (path === "/dev/null") draft.sawDevNullNew = true;
       else draft.newPath = path;
       continue;
@@ -160,21 +160,20 @@ export function parseUnifiedDiff(input: string): ChangedFile[] {
     if (line.startsWith("+")) {
       hunk.lines.push({ kind: "added", text: line.slice(1), newNo });
       newNo += 1;
+      if (line.includes("Subproject commit")) draft.status = "submodule";
       continue;
     }
     if (line.startsWith("-")) {
       hunk.lines.push({ kind: "deleted", text: line.slice(1), oldNo });
       oldNo += 1;
+      if (line.includes("Subproject commit")) draft.status = "submodule";
       continue;
     }
     if (line.startsWith(" ")) {
       hunk.lines.push({ kind: "context", text: line.slice(1), oldNo, newNo });
       oldNo += 1;
       newNo += 1;
-      continue;
-    }
-    if (line.includes("Subproject commit")) {
-      draft.status = "submodule";
+      if (line.includes("Subproject commit")) draft.status = "submodule";
     }
   }
   finish();
@@ -253,6 +252,11 @@ function splitQuoted(input: string): [string, string] | undefined {
   if (current) parts.push(current);
   if (parts.length < 2) return undefined;
   return [parts[0] ?? "", parts[1] ?? ""];
+}
+
+function pathBeforeTab(path: string): string {
+  const tab = path.indexOf("\t");
+  return tab === -1 ? path : path.slice(0, tab);
 }
 
 function stripPrefix(path: string): string {

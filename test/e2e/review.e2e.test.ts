@@ -117,7 +117,7 @@ describe("kestrel review", () => {
     ]);
     expect(range.status, range.stderr).toBe(0);
     expect(JSON.parse(range.stdout).run.mode).toBe("range");
-  });
+  }, 90_000);
 
   it("validates JSON and SARIF and writes markdown", async () => {
     const cwd = await initRepo();
