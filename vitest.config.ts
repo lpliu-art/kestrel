@@ -11,12 +11,18 @@ export default defineConfig({
       reporter: ["text"],
       include: ["src/**/*.ts"],
       thresholds: {
-        lines: 65,
-        statements: 60,
-        functions: 70,
-        branches: 45,
+        lines: 91,
+        statements: 88,
+        functions: 92,
+        branches: 74,
+        "src/rules/": {
+          lines: 95,
+        },
+        "src/git/": {
+          lines: 95,
+        },
         "src/judge/": {
-          lines: 90,
+          lines: 99,
         },
       },
     },

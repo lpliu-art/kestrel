@@ -10,12 +10,19 @@ export interface GitResult {
 export async function git(
   args: string[],
   cwd: string,
-  opts?: { timeoutMs?: number; maxBuffer?: number; allowFail?: boolean },
+  opts?: {
+    timeoutMs?: number;
+    maxBuffer?: number;
+    allowFail?: boolean;
+    /** Executable to spawn. Defaults to git on PATH. */
+    command?: string;
+  },
 ): Promise<GitResult> {
   const timeoutMs = opts?.timeoutMs ?? 30_000;
   const maxBuffer = opts?.maxBuffer ?? 50 * 1024 * 1024;
+  const command = opts?.command ?? "git";
   return new Promise((resolve, reject) => {
-    const child = spawn("git", args, { cwd });
+    const child = spawn(command, args, { cwd });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     let outLen = 0;
@@ -81,7 +88,7 @@ export async function git(
       if (result.code !== 0 && !opts?.allowFail) {
         const message =
           result.stderr.trim() ||
-          `git ${args.join(" ")} failed (${result.code})`;
+          `${command} ${args.join(" ")} failed (${result.code})`;
         fail(new KestrelError(message, 2, "usage"));
         return;
       }

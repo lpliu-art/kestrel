@@ -58,6 +58,13 @@ export class RateLimiter {
       this.windowStart = now;
     }
     if (this.tokens + tokens > this.limits.tokensPerSecond) {
+      if (this.tokens === 0) {
+        // One request can be larger than the per-second budget. Waiting
+        // would never make it fit, so let a fresh window absorb it.
+        this.hits.push(now);
+        this.tokens = this.limits.tokensPerSecond;
+        return 0;
+      }
       return Math.max(1, 1000 - (now - this.windowStart));
     }
     this.hits.push(now);
