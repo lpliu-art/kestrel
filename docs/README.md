@@ -22,7 +22,7 @@ Kestrel 据此把代码评审重新设计为 **“规则即问题（Rules-as-Que
 
 - ⚡ **快且便宜**：典型 PR 约 40 个单元，目标 p50 < 3 s、成本 < $0.01（设计估算，待实测）。
 - 🎯 **可校准、可门禁**：每条发现都带概率、严重度与模型版本；`--gate` 仅在“高严重度且 p ≥ 0.8”时阻塞合并。
-- 🧩 **每种语言一个插件**：首批 TypeScript/JavaScript（含 React、Vue 规则子包）、Python、Java、Go + 通用 core；后续 Rust、C#。规则是 YAML 数据，自带正反例测试。
+- 🧩 **每种语言一个插件**：TypeScript/JavaScript（含 React、Vue 规则子包）、Python、Java、Go、Rust、C# + 通用 core。规则是 YAML 数据，自带正反例测试。
 - 🧾 **多种输出**：终端、JSON（给 Agent）、SARIF 2.1.0（GitHub Code Scanning）、Markdown、GitHub PR 行内评论 + 粘性汇总。
 - 🤖 **Agent 原生**：`npx skills add lpliu-art/kestrel`、Claude Code `/kestrel:review`；Agent 负责写解释与修复，Kestrel 负责快速判断与定位。
 - 🧪 **离线可测**：`--provider mock`（确定性启发式，显著标注“非 AI”）与 `replay`（录制回放），CI 与测试无需 Jev Key。
@@ -142,7 +142,7 @@ gate: { failOn: high, minProbability: 0.8 }
 
 ## 路线图
 
-MVP（0.1）：CLI + 4 语言规则包 + mock/replay/typesafe provider + 终端/JSON/Markdown/SARIF + 门禁 + Skill → P1：tree-sitter、GitHub Action 与 PR 评论、静态工具 SARIF 过滤、团队 checks → P2（0.3.0）：LLM 叙述器、React/Vue 深度、Rust/C#、GitLab、scan、增量评审、PR 级判断 → P3（0.4.0）：评测与阈值校准、护栏公式比较、会话查看器、单二进制、llm-shim、OpenTelemetry、`--explore`。详见 [实施计划](05-implementation-plan.md)。
+MVP（0.1）：CLI + 4 语言规则包 + mock/replay/typesafe provider + 终端/JSON/Markdown/SARIF + 门禁 + Skill → P1：tree-sitter、GitHub Action 与 PR 评论、静态工具 SARIF 过滤、团队 checks → P2（0.3.0，已交付）：LLM 叙述器、React/Vue 深度、Rust/C#、GitLab、scan、增量评审、PR 级判断 → P3（0.4.0–0.4.3，已交付）：评测与阈值校准、护栏公式比较、会话查看器、单二进制、llm-shim、OpenTelemetry、`--explore`、`kestrel auth`。详见 [实施计划](05-implementation-plan.md)。
 
 ## 致谢与声明
 

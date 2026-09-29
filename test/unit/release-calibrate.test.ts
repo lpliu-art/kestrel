@@ -40,18 +40,18 @@ afterEach(() => {
 
 describe("release notes", () => {
   it("matches a v tag to package.json and extracts one changelog section", () => {
-    expect(tagMatchesPackageVersion("v0.4.2", "0.4.2")).toBe(true);
-    expect(tagMatchesPackageVersion("refs/tags/v0.4.2", "0.4.2")).toBe(true);
-    expect(tagMatchesPackageVersion("v0.4.3", "0.4.2")).toBe(false);
-    expect(verifyTag(undefined, "0.4.2")).toMatch(/Pass the git tag/);
-    expect(verifyTag("v0.4.3", "0.4.2")).toMatch(/does not match/);
-    expect(verifyTag("v0.4.2", "0.4.2")).toBe("");
+    expect(tagMatchesPackageVersion("v0.4.3", "0.4.3")).toBe(true);
+    expect(tagMatchesPackageVersion("refs/tags/v0.4.3", "0.4.3")).toBe(true);
+    expect(tagMatchesPackageVersion("v0.4.4", "0.4.3")).toBe(false);
+    expect(verifyTag(undefined, "0.4.3")).toMatch(/Pass the git tag/);
+    expect(verifyTag("v0.4.4", "0.4.3")).toMatch(/does not match/);
+    expect(verifyTag("v0.4.3", "0.4.3")).toBe("");
     const notes = changelogSection(
-      "# Changelog\n\n## 0.4.2\n\nEmbedded rules.\n\n## 0.4.1\n\nWasm.\n",
-      "0.4.2",
+      "# Changelog\n\n## 0.4.3\n\nAuth and docs.\n\n## 0.4.2\n\nEmbedded rules.\n",
+      "0.4.3",
     );
-    expect(notes).toBe("## 0.4.2\n\nEmbedded rules.\n");
-    expect(notes).not.toMatch(/0\.4\.1/);
+    expect(notes).toBe("## 0.4.3\n\nAuth and docs.\n");
+    expect(notes).not.toMatch(/0\.4\.2/);
     expect(() => changelogSection("# Changelog\n", "9.9.9")).toThrow(
       /no section/,
     );

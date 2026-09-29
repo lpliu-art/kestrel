@@ -196,7 +196,7 @@ static:
           secrets: { TYPESAFE_API_KEY: string };
         }
       ).secrets.TYPESAFE_API_KEY,
-    ).toBe("(set)");
+    ).toBe("(env)");
     await expect(
       Promise.resolve().then(() =>
         loadConfig({

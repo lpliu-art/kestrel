@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { maskKey, resolveApiKey } from "../auth/credentials.ts";
 import type { ResolvedConfig } from "../config/schema.ts";
 import {
   ensureTreesitter,
@@ -26,13 +27,23 @@ export async function runDoctor(input: {
   const checks: DoctorCheck[] = [];
   checks.push(await gitCheck());
   checks.push(nodeCheck());
-  const key = input.env.TYPESAFE_API_KEY;
+  const resolved = resolveApiKey(input.env);
+  let keyDetail: string;
+  if (!resolved.key) {
+    keyDetail = "TYPESAFE_API_KEY is missing";
+  } else if (resolved.source === "env") {
+    keyDetail = `env (TYPESAFE_API_KEY) · ${maskKey(resolved.key)}`;
+  } else {
+    keyDetail = `file (${resolved.path ?? "credentials"}) · ${maskKey(resolved.key)}`;
+  }
   checks.push({
     name: "api key",
     ok: true,
-    detail: key ? "TYPESAFE_API_KEY is set" : "TYPESAFE_API_KEY is missing",
+    detail: keyDetail,
   });
-  checks.push(await modelCheck(input.config, key, input.fetchImpl ?? fetch));
+  checks.push(
+    await modelCheck(input.config, resolved.key, input.fetchImpl ?? fetch),
+  );
   checks.push(await cacheCheck(resolve(input.cwd, input.config.jev.cache.dir)));
   checks.push(...(await parserChecks()));
   const text = `${checks

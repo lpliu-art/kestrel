@@ -212,6 +212,12 @@ export const userConfigSchema = z
       })
       .strict()
       .optional(),
+    auth: z
+      .object({
+        skipKeyPrompt: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

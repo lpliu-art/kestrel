@@ -117,6 +117,11 @@ run(process.execPath, [
 const binaryName = process.platform === "win32" ? "kestrel.exe" : "kestrel";
 const binary = join(outDir, binaryName);
 copyFileSync(process.execPath, binary);
+// macOS arm64 kills binaries whose signature no longer matches, so drop
+// node's signature before injecting and ad-hoc sign the result afterwards.
+if (process.platform === "darwin") {
+  run("codesign", ["--remove-signature", binary]);
+}
 run("npx", [
   "--yes",
   "postject",
@@ -130,6 +135,10 @@ run("npx", [
     : []),
 ]);
 if (process.platform !== "win32") chmodSync(binary, 0o755);
+if (process.platform === "darwin") {
+  run("codesign", ["--sign", "-", "--force", binary]);
+  run("codesign", ["--verify", "--strict", binary]);
+}
 rmSync(join(outDir, "payload"), { recursive: true, force: true });
 
 const version = run(binary, ["--version"], { stdio: "pipe", encoding: "utf8" });

@@ -24,11 +24,10 @@ Kestrel therefore treats code review as **Rules-as-Questions**:
 
 - ⚡ **Fast and cheap.** A typical PR has about 40 units; the targets are p50 under 3 s and cost under $0.01. These are design estimates and still need measuring.
 - 🎯 **Calibrated and gateable.** Every finding carries a probability, a severity and the model version. `--gate` blocks only on findings with severity ≥ high and p ≥ 0.8.
-- 🧩 **One plugin per language.** First batch:
+- 🧩 **One plugin per language.** Builtin plugins:
   - TypeScript/JavaScript, with React and Vue rule sub-packs
-  - Python, Java and Go
+  - Python, Java, Go, Rust, and C#
   - a shared core pack
-  - Rust and C# come later.
   
   Rules are YAML data and ship with their own positive and negative test examples.
 - 🧾 **Many outputs.** Terminal, JSON (for agents), SARIF 2.1.0 (GitHub Code Scanning), Markdown, and GitHub PR inline comments with a sticky summary.
@@ -171,10 +170,12 @@ A language plugin is an npm package (`kestrel-plugin-<lang>`) that exports a `Ke
 
 ## Roadmap
 
+Shipped in this repository:
+
 1. **MVP (0.1):** CLI, rule packs for 4 languages, mock/replay/typesafe providers, terminal/JSON/Markdown/SARIF output, merge gate, and the skill.
 2. **P1:** tree-sitter, GitHub Action and PR comments, filtering of static-tool SARIF, team checks.
-3. **P2:** LLM narrator, deeper React/Vue support, Rust/C#, GitLab.
-4. **P3 (0.4.0):** evaluation and threshold calibration, guardrail comparison, session viewer, single binary, llm-shim, OpenTelemetry, and `--explore`.
+3. **P2 (0.3.0):** LLM narrator, deeper React/Vue support, Rust/C#, GitLab, scan, incremental review.
+4. **P3 (0.4.0–0.4.3):** evaluation and threshold calibration, guardrail comparison, session viewer, single binary, llm-shim, OpenTelemetry, `--explore`, and `kestrel auth` for Jev API key onboarding.
 
 See the [implementation plan](05-implementation-plan.md) for details.
 

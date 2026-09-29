@@ -42,6 +42,9 @@ jobs:
         run: node scripts/sea/build.mjs
       - name: Smoke test tree-sitter
         run: node scripts/sea/smoke.mjs
+      - name: Verify macOS signature
+        if: runner.os == 'macOS'
+        run: codesign --verify --strict --verbose=2 dist/sea/kestrel
       - name: Name release binary
         id: asset
         shell: bash
