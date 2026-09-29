@@ -5,7 +5,7 @@
 
 [English](README.en.md) · [调研](docs/01-research.md) · [概念](docs/02-concept.md) · [技术方案](docs/03-technical-design.md) · [架构图](docs/04-architecture.md) · [实施计划](docs/05-implementation-plan.md) · [目录结构](docs/06-repo-layout.md)
 
-> 状态：0.4.1（P3）。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。真实评审需要 `TYPESAFE_API_KEY`。没有密钥时请使用 `--provider mock`（结果不是 AI 判断）。mock 校准数字不是 Jev 的数字。
+> 状态：0.4.2（P3）。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。真实评审需要 `TYPESAFE_API_KEY`。没有密钥时请使用 `--provider mock`（结果不是 AI 判断）。mock 校准数字不是 Jev 的数字。
 
 ## 为什么是 Kestrel
 
@@ -123,7 +123,7 @@ checks:
 - Provider：`typesafe`（`@typesafe-ai/sdk` 0.6.0，模型 `jev-1.13.0`）、`http`、`mock`、`replay`。测试和 CI 不需要密钥，也不访问网络。
 - 输出：终端、JSON、SARIF 2.1.0、Markdown。JSON 报告带有 `trace`，`explain` 用来显示问题、答案和概率。
 - `doctor` 检查 Git、Node、API key、模型可达性（有 key 时 `GET /v1/models`）、缓存目录，以及每种语言的解析器。语法加载成功时打印 `parser: tree-sitter (<language>)`，失败时打印 `parser: regex-fallback (<language>)` 并以退出码 1 结束。
-- 单二进制：`node scripts/sea/build.mjs` 生成 `dist/sea/kestrel`（Windows 为 `kestrel.exe`）。`tree-sitter.wasm` 和各语言语法 wasm 打进 SEA 资源。二进制用这些字节初始化解析器，做语法级审查单元，不读取二进制旁边的 wasm 文件。npm 包仍从 `node_modules` 加载 wasm。内置规则 YAML 仍放在二进制旁边的 `payload/`。
+- 单二进制：`node scripts/sea/build.mjs` 生成只有一个文件的 `dist/sea/kestrel`（Windows 为 `kestrel.exe`）。语法 wasm、内置规则 YAML 和 `package.json` 都打进 SEA 资源。二进制单独放在空目录里就能跑 `--version`、`doctor`、`rules`、`review` 和 `view`。查看器的 HTML/CSS/JS 编进程序，不另读文件。npm 包仍从磁盘读取 wasm 和规则 YAML。项目自己的 `.kestrel.yml`、`.kestrel/rules/` 和团队 checks 仍从磁盘加载，并覆盖同名内置规则。
 - GitHub Action、PR 评论（指纹去重、粘性汇总）和 SARIF 过滤。
 - Agent skill：`skills/kestrel/SKILL.md`，以及 Claude Code 命令 `review` / `explain`。
 
