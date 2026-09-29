@@ -3,26 +3,160 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release (vX.Y.Z)
+        required: true
+        type: string
 
 permissions:
   contents: read
-  id-token: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      sha: ${{ steps.meta.outputs.sha }}
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Tag matches package.json
+        id: meta
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_TAG"
+          node --experimental-strip-types scripts/release/verify-tag.ts "$tag"
+          version="$(node -p "require('./package.json').version")"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Test
+        run: npm test -- --coverage
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
-      - run: npm publish --provenance --access public
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          name="$(node -p "require('./package.json').name")"
+          version="$(node -p "require('./package.json').version")"
+          set +e
+          view="$(npm view "${name}@${version}" version 2>&1)"
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "${name}@${version} is already published. Skipping npm publish."
+            exit 0
+          fi
+          if ! printf '%s\n' "$view" | grep -q 'E404'; then
+            echo "npm view failed, so this run will not publish."
+            printf '%s\n' "$view"
+            exit 1
+          fi
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN is not set. Add the NPM_TOKEN repository secret (npm automation or granular token with publish rights). The token is not printed."
+            exit 1
+          fi
+          npm publish --provenance --access public
+
+  binaries:
+    needs: verify
+    uses: ./.github/workflows/sea.yml
+    with:
+      ref: ${{ needs.verify.outputs.sha }}
+    permissions:
+      contents: read
+
+  github:
+    needs: [verify, publish, binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: release-assets
+          pattern: kestrel-*
+          merge-multiple: true
+      - name: Checksums and notes
+        run: |
+          set -euo pipefail
+          cd release-assets
+          find . -type f -name 'kestrel-*' -printf '%P\n' | LC_ALL=C sort > files.txt
+          if [ ! -s files.txt ]; then
+            echo "No release binaries were downloaded."
+            exit 1
+          fi
+          sha256sum $(cat files.txt) | LC_ALL=C sort -k2 > SHA256SUMS
+          cd ..
+          node --experimental-strip-types scripts/release/notes.ts "${{ needs.verify.outputs.version }}" > notes.md
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          set -euo pipefail
+          files=()
+          while IFS= read -r name; do
+            files+=("release-assets/$name")
+          done < release-assets/files.txt
+          files+=("release-assets/SHA256SUMS")
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+            gh release edit "$TAG" --notes-file notes.md
+            echo "Updated GitHub Release $TAG."
+          else
+            gh release create "$TAG" "${files[@]}" --title "$TAG" --notes-file notes.md
+            echo "Created GitHub Release $TAG."
+          fi

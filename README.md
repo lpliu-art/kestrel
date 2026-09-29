@@ -26,7 +26,16 @@ npm run build
 node bin/kestrel.mjs review --provider mock
 ```
 
-没有 API key 时，`--provider mock` 可以离线跑通终端、JSON、SARIF 和 Markdown。真实评审：
+没有 API key 时，`--provider mock` 可以离线跑通终端、JSON、SARIF 和 Markdown。安装已发布的包：
+
+```bash
+npm install -g kestrel-review
+kestrel --version
+```
+
+GitHub Release `v*` 附带三个单文件二进制和 `SHA256SUMS`：`kestrel-linux-x64`、`kestrel-macos-<arch>`、`kestrel-windows-x64.exe`。发布由 `.github/workflows/release.yml` 在 tag 推送时执行（也可用 workflow_dispatch 重跑同一个 tag）。npm 包名以 `package.json` 的 `name` 为准，当前是 `kestrel-review`。
+
+真实评审：
 
 ```bash
 export TYPESAFE_API_KEY=ts-...

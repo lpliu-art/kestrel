@@ -1,0 +1,71 @@
+name: SEA binary
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to build. Defaults to the calling commit.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sea:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: kestrel-linux-x64
+          - os: macos-latest
+            name: kestrel-macos
+          - os: windows-latest
+            name: kestrel-windows-x64
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Install
+        run: npm ci
+      - name: Build npm package
+        run: npm run build
+      - name: Build single executable
+        run: node scripts/sea/build.mjs
+      - name: Smoke test tree-sitter
+        run: node scripts/sea/smoke.mjs
+      - name: Name release binary
+        id: asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            name="kestrel-windows-x64.exe"
+            cp dist/sea/kestrel.exe "dist/sea/$name"
+          elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            name="kestrel-linux-x64"
+            cp dist/sea/kestrel "dist/sea/$name"
+          else
+            machine="$(uname -m)"
+            case "$machine" in
+              arm64|aarch64) arch=arm64 ;;
+              x86_64|amd64) arch=x64 ;;
+              *) arch="$machine" ;;
+            esac
+            name="kestrel-macos-${arch}"
+            cp dist/sea/kestrel "dist/sea/$name"
+          fi
+          echo "asset=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.asset.outputs.asset }}
+          path: dist/sea/${{ steps.asset.outputs.asset }}
+          if-no-files-found: error

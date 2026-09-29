@@ -18,6 +18,36 @@ That command calls Jev and writes `calibration.json` with:
 
 The first line says the run is live Jev. `--apply` marks the proposal applied only in that case. Copy a proposed threshold into team config only after you check that the model is a pinned `jev-x.y.z`.
 
+## GitHub Actions
+
+`.github/workflows/calibrate.yml` is `workflow_dispatch` only. Put the key in the repository Actions secret `TYPESAFE_API_KEY`. Do not pass it on the command line. If that secret is missing, the workflow fails immediately and does not print the value.
+
+Actions → Calibrate → Run workflow:
+
+| Input | Default | Role |
+| --- | --- | --- |
+| `dataset` | `eval/internal/dataset.json` | Labeled dataset path |
+| `plugin` | empty | One builtin plugin: `core`, `typescript`, `python`, `java`, `go`, `rust`, `csharp` |
+| `max_requests` | `500` | Refuse to start when the case count is higher; stop the run when this many Jev requests have been sent |
+| `budget_tokens` | `2000000` | Input-token cap |
+| `open_pr` | off | Write the balanced proposal into builtin rule packs and open a pull request. A mock report is not written |
+
+The JSON and Markdown report is the `calibration-report` artifact. The Markdown is also appended to the job summary.
+
+Check the same script locally in mock mode (no network):
+
+```bash
+npm run build
+node --experimental-strip-types scripts/calibrate.ts \
+  --dataset eval/internal/dataset.json \
+  --provider mock \
+  --max-requests 500 \
+  --budget-tokens 2000000 \
+  --out-dir calibration
+```
+
+`--apply-thresholds` refuses to edit rule packs when the report is mock.
+
 Offline counterpart (no network):
 
 ```bash

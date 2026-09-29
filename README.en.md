@@ -26,7 +26,16 @@ npm run build
 node bin/kestrel.mjs review --provider mock
 ```
 
-Mock mode produces terminal, JSON, SARIF, and Markdown output with no API key and no network. For a real review:
+Mock mode produces terminal, JSON, SARIF, and Markdown output with no API key and no network. Install a published build:
+
+```bash
+npm install -g kestrel-review
+kestrel --version
+```
+
+GitHub Releases for `v*` tags attach three single-file binaries and `SHA256SUMS`: `kestrel-linux-x64`, `kestrel-macos-<arch>`, and `kestrel-windows-x64.exe`. `.github/workflows/release.yml` runs on a tag push. workflow_dispatch re-runs a tag. The npm package name is the `name` in `package.json`, currently `kestrel-review`.
+
+For a real review:
 
 ```bash
 export TYPESAFE_API_KEY=ts-...

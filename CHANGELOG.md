@@ -4,6 +4,8 @@
 
 The single-file binary embeds the builtin rule packs and `package.json`. It no longer reads a `payload/` directory next to the executable. User config, project rule packs, and team checks still load from disk and layer over the embedded builtins. The viewer page is compiled into the binary. The npm package still reads rule YAML from disk.
 
+Pushing a `v*` tag publishes `kestrel-review` to npm and attaches the Linux, macOS, and Windows binaries to a GitHub Release. The calibration workflow runs `kestrel eval --provider typesafe --calibrate` with `TYPESAFE_API_KEY` and can open a pull request that writes the balanced thresholds into builtin rule packs. `kestrel eval` accepts `--plugin`, `--budget-tokens`, and `--max-requests`.
+
 Question compiler: no change. Existing rule questions are unchanged.
 
 ## 0.4.1

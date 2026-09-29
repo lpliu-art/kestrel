@@ -7,6 +7,7 @@ import type { JevAnswer } from "../jev/types.ts";
 import { effectiveProbability } from "../judge/decide.ts";
 import type { RequestTrace } from "../pipeline/judge-unit.ts";
 import { runReview } from "../pipeline/review.ts";
+import { KestrelError } from "../util/errors.ts";
 import { type EvalDataset, loadDataset } from "./dataset.ts";
 import {
   compareFusion,
@@ -20,6 +21,7 @@ import {
   type ScorePair,
   searchThresholds,
 } from "./metrics.ts";
+import { filterDataset } from "./plugins.ts";
 
 export interface EvalReport {
   dataset: string;
@@ -51,8 +53,21 @@ export async function runEval(options: {
   fetchImpl?: typeof fetch;
   calibrate?: boolean;
   apply?: boolean;
+  plugin?: string;
+  budgetTokens?: number;
+  maxRequests?: number;
 }): Promise<EvalReport> {
-  const dataset = await loadDataset(options.datasetPath);
+  let dataset = await loadDataset(options.datasetPath);
+  if (options.plugin) {
+    dataset = filterDataset(dataset, options.plugin);
+    if (dataset.cases.length === 0) {
+      throw new KestrelError(
+        `No dataset cases match plugin ${options.plugin}.`,
+        2,
+        "usage",
+      );
+    }
+  }
   const scored = await scoreDataset(dataset, options);
   const threshold = profileThresholds.balanced.report;
   const pairs = scored.pairs;
@@ -147,6 +162,9 @@ async function scoreDataset(
     model?: string;
     env?: NodeJS.ProcessEnv;
     fetchImpl?: typeof fetch;
+    plugin?: string;
+    budgetTokens?: number;
+    maxRequests?: number;
   },
 ): Promise<{
   pairs: ScorePair[];
@@ -183,6 +201,13 @@ async function scoreDataset(
     noCache: true,
     env: options.env ?? {},
     fetchImpl: options.fetchImpl,
+    ...(options.plugin ? { onlyPlugin: options.plugin } : {}),
+    ...(options.budgetTokens !== undefined
+      ? { budgetTokens: options.budgetTokens }
+      : {}),
+    ...(options.maxRequests !== undefined
+      ? { maxRequests: options.maxRequests }
+      : {}),
     tty: false,
     ci: true,
   });

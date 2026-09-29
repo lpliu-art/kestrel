@@ -6,6 +6,7 @@ import {
 } from "../config/defaults.ts";
 import { type LoadConfigInput, loadConfig } from "../config/load.ts";
 import type { ResolvedConfig } from "../config/schema.ts";
+import { prefixesFor } from "../eval/plugins.ts";
 import { runExplore } from "../explore/run.ts";
 import {
   type DiffMode,
@@ -15,6 +16,7 @@ import {
 } from "../git/diff-provider.ts";
 import { type ChangedFile, splitSourceLines } from "../git/unified-diff.ts";
 import { incrementalSince, writeIncremental } from "../incremental/state.ts";
+import { RequestGuard } from "../jev/budget.ts";
 import { buildProvider } from "../jev/factory.ts";
 import { estimateRequestTokens } from "../jev/tokens.ts";
 import { dedupeFindings } from "../judge/dedupe.ts";
@@ -52,6 +54,7 @@ import {
   ensureTreesitter,
 } from "../treesitter/runtime.ts";
 import { buildUnits, type ReviewUnit } from "../units/build.ts";
+import { KestrelError } from "../util/errors.ts";
 import type { JsonValue } from "../util/json.ts";
 import { round6 } from "../util/json.ts";
 import { toolVersion } from "../util/package.ts";
@@ -86,6 +89,8 @@ export interface ReviewOptions {
   preview?: boolean;
   showPayload?: boolean;
   budgetTokens?: number;
+  maxRequests?: number;
+  onlyPlugin?: string;
   concurrency?: number;
   noCache?: boolean;
   recordDir?: string;
@@ -145,7 +150,24 @@ export async function runReview(
   const started = (options.now ?? (() => new Date()))();
   const startedMs = started.getTime();
   const registry = await loadPlugins(config, cwd, options.untrusted ?? false);
-  const rules = await loadRules(registry.plugins, config, cwd);
+  let rules = await loadRules(registry.plugins, config, cwd);
+  if (options.onlyPlugin) {
+    const prefixes = prefixesFor(options.onlyPlugin);
+    rules = rules.filter((rule) =>
+      prefixes.some((prefix) => rule.id.startsWith(prefix)),
+    );
+    if (rules.length === 0) {
+      throw new KestrelError(
+        `No builtin rules match plugin ${options.onlyPlugin}.`,
+        2,
+        "usage",
+      );
+    }
+  }
+  const requestGuard =
+    options.maxRequests === undefined
+      ? undefined
+      : new RequestGuard(options.maxRequests);
   const mode =
     options.mode ??
     (options.commit ? "commit" : options.from ? "range" : "workspace");
@@ -249,6 +271,7 @@ export async function runReview(
           state: item.state,
           provider: built.provider,
           budget: built.budget,
+          ...(requestGuard ? { requests: requestGuard } : {}),
           model: config.jev.model,
           profile: config.profile,
           language: config.output.language,
