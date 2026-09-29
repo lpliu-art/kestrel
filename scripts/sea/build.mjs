@@ -4,6 +4,7 @@ import {
   copyFileSync,
   cpSync,
   mkdirSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
@@ -58,10 +59,12 @@ const grammars = [
   ],
 ];
 const assets = {};
+let wasmBytes = 0;
 for (const [name, path] of grammars) {
   const dest = join(outDir, name);
   copyFileSync(path, dest);
   assets[name] = dest;
+  wasmBytes += statSync(path).size;
 }
 
 const config = {
@@ -124,4 +127,6 @@ if (version.status !== 0) {
   );
   process.exit(version.status ?? 1);
 }
-process.stdout.write(`sea ${binary} ${version.stdout}`);
+process.stdout.write(
+  `sea ${binary} ${version.stdout.trim()} binary=${statSync(binary).size} wasm=${wasmBytes}\n`,
+);

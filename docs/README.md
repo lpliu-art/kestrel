@@ -5,7 +5,7 @@
 
 [English](README.en.md) · [调研](01-research.md) · [概念](02-concept.md) · [技术方案](03-technical-design.md) · [架构图](04-architecture.md) · [实施计划](05-implementation-plan.md) · [目录结构](06-repo-layout.md)
 
-> ⚠️ 状态：0.4.0（P3）已在仓库中实现；本目录仍是设计说明。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。Jev 需要 TypeSafe API Key（访问政策以官方为准）。LLM 叙述器默认关闭，密钥是 `KESTREL_LLM_API_KEY`。用真实 Jev 校准见 [07-calibrate.md](07-calibrate.md)。
+> ⚠️ 状态：0.4.0（P3）已在仓库中实现，0.4.1 让单二进制加载 tree-sitter；本目录仍是设计说明。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。Jev 需要 TypeSafe API Key（访问政策以官方为准）。LLM 叙述器默认关闭，密钥是 `KESTREL_LLM_API_KEY`。用真实 Jev 校准见 [07-calibrate.md](07-calibrate.md)。
 
 ## 为什么是 Kestrel
 

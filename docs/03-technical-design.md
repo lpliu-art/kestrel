@@ -22,7 +22,7 @@
 
 **结论：TypeScript + Node ≥ 22。** 理由：官方 SDK 类型推断、npm/Skill 生态同栈、插件加载与 WASM tree-sitter 都最顺手。Kestrel 的瓶颈是网络往返（70–500ms/请求），不是 CPU，Go 的性能优势不重要。
 - 选 Node 22 而不是 SDK 允许的 20：Node 20 已于 2026-04 结束维护；且 vitest 5、commander 15 等工具链最新版要求 Node ≥ 22（2026-09-29 查询 npm registry 的 `engines` 字段）。
-- 单二进制需求（如air-gapped CI）留给 P3：Node SEA 或 `bun build --compile`（⚠️ 未验证与 web-tree-sitter WASM 的兼容性）。
+- 单二进制（0.4.1）使用 Node SEA。入口打成 CommonJS，`import.meta.url` 指向可执行文件；`tree-sitter.wasm` 和语言语法作为 SEA 资源以字节加载。npm 包仍从磁盘上的 `node_modules` 加载 wasm。
 
 ### 1.2 依赖清单（MVP 用粗体）
 

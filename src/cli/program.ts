@@ -467,7 +467,7 @@ program
 program
   .command("doctor")
   .description(
-    "Check git, Node, the API key, model reachability, and the cache",
+    "Check git, Node, tree-sitter, the API key, model reachability, and the cache",
   )
   .option("--config <path>")
   .action(async (opts: { config?: string }) => {

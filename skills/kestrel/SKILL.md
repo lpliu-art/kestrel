@@ -9,7 +9,7 @@ license: Apache-2.0
 compatibility: >
   Requires Node.js >= 22 and the `kestrel` CLI (`npm i -g kestrel-review` or `npx -y kestrel-review`).
   Real reviews need TYPESAFE_API_KEY; without it, only `--provider mock` works and results are NOT AI judgments.
-metadata: { homepage: "https://github.com/lpliu-art/kestrel", version: "0.4.0" }
+metadata: { homepage: "https://github.com/lpliu-art/kestrel", version: "0.4.1" }
 ---
 
 # Kestrel review
