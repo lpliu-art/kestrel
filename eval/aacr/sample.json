@@ -22,7 +22,10 @@
       "note": "The query uses a bound parameter.",
       "label": 0,
       "hunk": "export function getUser(id: string) {\n  return db.query(\"SELECT * FROM users WHERE id = $1\", [id]);\n}\n",
-      "kestrel": { "ruleId": "ts.security.sql-string-concat", "positive": false }
+      "kestrel": {
+        "ruleId": "ts.security.sql-string-concat",
+        "positive": false
+      }
     }
   ]
 }

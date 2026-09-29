@@ -9,13 +9,17 @@
       "id": "ts-sql-positive",
       "path": "src/user.ts",
       "source": "export function getUser(id: string) {\n  const sql = \"SELECT * FROM users WHERE id = \" + id;\n  return sql;\n}\n",
-      "labels": [{ "ruleId": "ts.security.sql-string-concat", "positive": true }]
+      "labels": [
+        { "ruleId": "ts.security.sql-string-concat", "positive": true }
+      ]
     },
     {
       "id": "ts-sql-negative",
       "path": "src/safe-user.ts",
       "source": "export function getUser(id: string) {\n  return db.query(\"SELECT * FROM users WHERE id = $1\", [id]);\n}\n",
-      "labels": [{ "ruleId": "ts.security.sql-string-concat", "positive": false }]
+      "labels": [
+        { "ruleId": "ts.security.sql-string-concat", "positive": false }
+      ]
     },
     {
       "id": "py-sql-positive",
