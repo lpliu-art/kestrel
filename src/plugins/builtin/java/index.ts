@@ -15,6 +15,13 @@ export const javaPlugin = definePlugin({
       extensions: [".java"],
       commentSyntax: { line: "//", block: ["/*", "*/"] },
     },
+    {
+      id: "xml",
+      extensions: [],
+      sniff(head) {
+        return /<mapper[\s>]/.test(head);
+      },
+    },
   ],
   rulePacks: [{ path: builtinRulePath("java", "core.yml") }],
   context: heuristicContext("java"),

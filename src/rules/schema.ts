@@ -57,9 +57,10 @@ export const ruleSchema = z
       .optional(),
     trigger: z
       .object({
-        kind: z.enum(["regex", "always", "removed"]),
+        kind: z.enum(["regex", "always", "removed", "treesitter"]),
         on: z.enum(["added", "removed", "both"]).optional(),
         pattern: z.string().min(1).optional(),
+        query: z.string().min(1).optional(),
         flags: z.string().optional(),
       })
       .strict(),

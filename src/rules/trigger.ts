@@ -1,4 +1,5 @@
 import picomatch from "picomatch";
+import { matchTreesitter } from "../treesitter/query.ts";
 import type { ReviewUnit } from "../units/build.ts";
 import type { LoadedRule } from "./schema.ts";
 
@@ -6,6 +7,7 @@ export interface Anchor {
   line: number;
   text: string;
   groups: string[];
+  captures?: Record<string, string>;
 }
 
 export interface TriggerMatch {
@@ -21,6 +23,18 @@ export function matchTrigger(rule: LoadedRule, unit: ReviewUnit): TriggerMatch {
     return { matched: false, anchors: [], suppressed: false };
   if (!applies(rule, unit))
     return { matched: false, anchors: [], suppressed: false };
+  if (rule.trigger.kind === "treesitter") {
+    const hit = matchTreesitter(rule, unit);
+    if (!hit.available) {
+      if (!rule.trigger.pattern)
+        return { matched: false, anchors: [], suppressed: false };
+      return matchRegex(rule, unit);
+    }
+    const anchors = hit.anchors.filter(
+      (anchor) => !isSuppressed(rule.id, anchor.line, unit.sourceLines),
+    );
+    return { matched: anchors.length > 0, anchors, suppressed: false };
+  }
   if (rule.trigger.kind === "always" || rule.trigger.kind === "removed") {
     if (
       rule.trigger.kind === "removed" &&
@@ -33,6 +47,10 @@ export function matchTrigger(rule: LoadedRule, unit: ReviewUnit): TriggerMatch {
     );
     return { matched: !suppressed, anchors: [], suppressed };
   }
+  return matchRegex(rule, unit);
+}
+
+function matchRegex(rule: LoadedRule, unit: ReviewUnit): TriggerMatch {
   const on = rule.trigger.on ?? "added";
   const pool = unit.lines.filter((line) => {
     if (on === "added") return line.kind === "added";

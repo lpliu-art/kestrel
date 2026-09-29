@@ -45,6 +45,29 @@ export const findingSchema = z
     references: z.array(z.string()),
     relatedRuleIds: z.array(z.string()),
     snippet: z.string(),
+    trace: z
+      .object({
+        model: z.string(),
+        profile: z.string(),
+        thresholds: z
+          .object({
+            report: z.number(),
+            uncertain: z.number(),
+          })
+          .strict(),
+        questions: z.array(
+          z
+            .object({
+              key: z.string(),
+              type: z.string(),
+              instructions: z.unknown(),
+              answer: z.unknown(),
+            })
+            .strict(),
+        ),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -147,6 +170,29 @@ export const reportSchema = z
       })
       .strict(),
     warnings: z.array(z.string()),
+    static: z
+      .object({
+        imported: z.number().int().nonnegative(),
+        onDiff: z.number().int().nonnegative(),
+        kept: z.number().int().nonnegative(),
+        dropped: z.number().int().nonnegative(),
+        alerts: z.array(
+          z
+            .object({
+              tool: z.string(),
+              ruleId: z.string(),
+              path: z.string(),
+              line: z.number().int().positive(),
+              decision: z.enum(["keep", "drop"]),
+              real: z.number(),
+              matters: z.number(),
+              probability: z.number(),
+            })
+            .strict(),
+        ),
+      })
+      .strict()
+      .optional(),
     preview: z
       .object({
         estimatedTokens: z.number().nonnegative(),

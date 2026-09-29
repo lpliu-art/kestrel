@@ -234,3 +234,240 @@ rules:
       negative:
         - code: |
             public void outer() { service.inner(); }
+
+  - id: java.npe.nullable-deref
+    title: { en: "Nullable value dereferenced", zh-CN: "解引用了可能为空的值" }
+    category: correctness
+    dimension: correctness
+    applies: { languages: [java] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\.get\(\)\.'
+    question:
+      question: "Do the added lines in `hunk` dereference Optional.get without a presence check?"
+      focus: "Lines marked with + that call get() and immediately use the result"
+      true: { what: "Optional.get is dereferenced" }
+      false: { what: "The value is mapped or checked with isPresent" }
+    severity:
+      levels: ["A value known to be present", "A value that may be empty"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls Optional.get and uses the result."
+        why: "get throws when the Optional is empty."
+      zh-CN:
+        body: "第 {{line}} 行调用了 Optional.get 并直接使用结果。"
+        why: "Optional 为空时 get 会抛异常。"
+    fix:
+      hint:
+        en: "Use map, orElse, or isPresent before reading the value."
+        zh-CN: "用 map、orElse，或者先 isPresent 再读取。"
+    examples:
+      positive:
+        - code: |
+            String name = user.get().name;
+      negative:
+        - code: |
+            String name = user.map(User::name).orElse("");
+
+  - id: java.security.mybatis-interpolation
+    title: { en: "MyBatis ${} interpolation", zh-CN: "MyBatis 使用了 ${} 插值" }
+    category: security
+    dimension: security
+    applies:
+      languages: [xml]
+      paths: ["**/*Mapper.xml"]
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\$\{'
+    question:
+      question: "Do the added lines in `hunk` interpolate a MyBatis value with ${}?"
+      focus: "Lines marked with + that contain ${}"
+      true: { what: "A ${} placeholder is added in a mapper" }
+      false: { what: "The value uses #{}" }
+    severity:
+      levels: ["A trusted column name", "A value that can come from a request"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} interpolates SQL with ${}."
+        why: "${} splices the value into SQL text."
+      zh-CN:
+        body: "第 {{line}} 行用 ${} 把值拼进了 SQL。"
+        why: "${} 会把值直接拼进 SQL 文本。"
+    fix:
+      hint:
+        en: "Use #{} so MyBatis binds the value."
+        zh-CN: "改用 #{}，让 MyBatis 绑定参数。"
+    references: ["CWE-89"]
+    examples:
+      positive:
+        - language: xml
+          path: src/UserMapper.xml
+          code: |
+            <mapper>
+            SELECT * FROM users WHERE id = ${id}
+            </mapper>
+      negative:
+        - language: xml
+          path: src/UserMapper.xml
+          code: |
+            <mapper>
+            SELECT * FROM users WHERE id = #{id}
+            </mapper>
+
+  - id: java.security.xxe
+    title: { en: "XML parser with default external entities", zh-CN: "XML 解析器允许外部实体" }
+    category: security
+    dimension: security
+    applies: { languages: [java] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'DocumentBuilderFactory\.newInstance\('
+    question:
+      question: "Do the added lines in `hunk` create a DocumentBuilderFactory?"
+      focus: "Lines marked with + that call DocumentBuilderFactory.newInstance"
+      true: { what: "A DocumentBuilderFactory is created" }
+      false: { what: "The code does not create an XML factory" }
+    severity:
+      levels: ["A parser that later disables external entities", "A parser used on request XML"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} creates a DocumentBuilderFactory."
+        why: "The default factory resolves external entities."
+      zh-CN:
+        body: "第 {{line}} 行创建了 DocumentBuilderFactory。"
+        why: "默认工厂会解析外部实体。"
+    fix:
+      hint:
+        en: "Disable external entities and DTDs before parsing."
+        zh-CN: "解析前关闭外部实体和 DTD。"
+    references: ["CWE-611"]
+    examples:
+      positive:
+        - code: |
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+      negative:
+        - code: |
+            parser.parse(safe);
+
+  - id: java.security.weak-random
+    title: { en: "java.util.Random for a secret", zh-CN: "用 java.util.Random 生成秘密" }
+    category: security
+    dimension: security
+    applies: { languages: [java] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'new Random\('
+    question:
+      question: "Do the added lines in `hunk` construct a java.util.Random?"
+      focus: "Lines marked with + that call new Random"
+      true: { what: "java.util.Random is constructed" }
+      false: { what: "SecureRandom is used" }
+    severity:
+      levels: ["A non-secret shuffle", "A token or password"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} uses java.util.Random."
+        why: "java.util.Random is predictable."
+      zh-CN:
+        body: "第 {{line}} 行使用了 java.util.Random。"
+        why: "java.util.Random 是可预测的。"
+    fix:
+      hint:
+        en: "Use java.security.SecureRandom for secrets."
+        zh-CN: "生成秘密时改用 java.security.SecureRandom。"
+    references: ["CWE-338"]
+    examples:
+      positive:
+        - code: |
+            Random random = new Random();
+      negative:
+        - code: |
+            SecureRandom random = new SecureRandom();
+
+  - id: java.security.runtime-exec
+    title: { en: "Runtime.exec of a command", zh-CN: "Runtime.exec 执行命令" }
+    category: security
+    dimension: security
+    applies: { languages: [java] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'Runtime\.getRuntime\(\)\.exec\('
+    question:
+      question: "Do the added lines in `hunk` call Runtime.exec?"
+      focus: "Lines marked with + that call Runtime.getRuntime().exec"
+      true: { what: "Runtime.exec is called" }
+      false: { what: "The code does not start a process this way" }
+    severity:
+      levels: ["A constant command", "A command that includes request data"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls Runtime.exec."
+        why: "The command string can be changed by whoever controls the argument."
+      zh-CN:
+        body: "第 {{line}} 行调用了 Runtime.exec。"
+        why: "控制参数的人可以改掉要执行的命令。"
+    fix:
+      hint:
+        en: "Pass a fixed argument list to ProcessBuilder and avoid a shell."
+        zh-CN: "用 ProcessBuilder 传入固定参数列表，不要经过 shell。"
+    references: ["CWE-78"]
+    examples:
+      positive:
+        - code: |
+            Runtime.getRuntime().exec(cmd);
+      negative:
+        - code: |
+            processBuilder.command(cmd);
+
+  - id: java.security.path-concat
+    title: { en: "File path built by concatenation", zh-CN: "通过拼接构造文件路径" }
+    category: security
+    dimension: security
+    applies: { languages: [java] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'new File\(\s*[^)\n]*\+'
+    question:
+      question: "Do the added lines in `hunk` build a File path by concatenation?"
+      focus: "Lines marked with + that pass a concatenated string to new File"
+      true: { what: "A File path contains a concatenated value" }
+      false: { what: "The path is built with Path.of and a safe base" }
+    severity:
+      levels: ["A constant suffix", "A value from a request"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} builds a file path by concatenation."
+        why: "A ../ segment in the value can escape the intended directory."
+      zh-CN:
+        body: "第 {{line}} 行通过拼接构造文件路径。"
+        why: "值里的 ../ 可以逃出预期目录。"
+    fix:
+      hint:
+        en: "Resolve the path against a base directory and reject values that escape it."
+        zh-CN: "相对基准目录解析路径，并拒绝逃出该目录的值。"
+    references: ["CWE-22"]
+    examples:
+      positive:
+        - code: |
+            File file = new File("/tmp/" + name);
+      negative:
+        - code: |
+            Path path = Path.of(base, name);

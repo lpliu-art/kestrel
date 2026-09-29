@@ -1,6 +1,11 @@
 import { type ProfileName, profileThresholds } from "../config/schema.ts";
 import type { JevAnswer } from "../jev/types.ts";
 import type { Finding } from "../report/model.ts";
+import {
+  compilePass2,
+  compileRuleQuestions,
+  defaultLocate,
+} from "../rules/compile.ts";
 import type { LoadedRule } from "../rules/schema.ts";
 import { renderTemplate } from "../rules/template.ts";
 import type { Anchor } from "../rules/trigger.ts";
@@ -104,6 +109,7 @@ export function decideRule(input: {
         }
       : { score: input.rule.severity.map.indexOf(severity), confidence: 1 };
   const location = locate(input.rule, input.unit, input.anchors, input.pass2);
+  const trace = traceFor(input, pEff, thresholds);
   return renderFinding({
     rule: input.rule,
     unit: input.unit,
@@ -117,7 +123,46 @@ export function decideRule(input: {
     location,
     source: "rule",
     slots: slotValues(input.rule, input.anchors, input.pass2),
+    trace,
   });
+}
+
+function traceFor(
+  input: {
+    rule: LoadedRule;
+    unit: ReviewUnit;
+    anchors: Anchor[];
+    answers: Record<string, JevAnswer>;
+    pass2?: Record<string, JevAnswer>;
+    profile: ProfileName;
+    model: string;
+  },
+  _pEff: number,
+  thresholds: Thresholds,
+): NonNullable<Finding["trace"]> {
+  const questions = {
+    ...compileRuleQuestions(input.rule),
+    ...(input.pass2 && Object.keys(input.pass2).length > 0
+      ? compilePass2(input.rule, input.unit.addedLineNumbers, input.anchors)
+      : {}),
+  };
+  const answers = { ...input.answers, ...input.pass2 };
+  return {
+    model: input.model,
+    profile: input.profile,
+    thresholds,
+    questions: Object.keys(questions)
+      .sort()
+      .map((key) => {
+        const question = questions[key];
+        return {
+          key,
+          type: question?.type ?? "noul",
+          instructions: question?.instructions ?? "",
+          answer: answers[key] ?? null,
+        };
+      }),
+  };
 }
 
 function locate(
@@ -126,8 +171,7 @@ function locate(
   anchors: Anchor[],
   pass2?: Record<string, JevAnswer>,
 ): Finding["location"] {
-  const mode =
-    rule.locate ?? (rule.trigger.kind === "regex" ? "trigger" : "choose");
+  const mode = defaultLocate(rule);
   const choice = pass2?.[`loc.${rule.id}`];
   const chosenLine =
     choice &&
@@ -183,6 +227,9 @@ function slotValues(
     if (slot.from.startsWith("regex:")) {
       const index = Number(slot.from.slice("regex:".length)) - 1;
       slots[name] = anchors[0]?.groups[index] ?? "";
+    } else if (slot.from.startsWith("capture:")) {
+      const capture = slot.from.slice("capture:".length);
+      slots[name] = anchors[0]?.captures?.[capture] ?? "";
     } else {
       const answer = pass2?.[`slot.${rule.id}.${name}`];
       slots[name] =
@@ -207,6 +254,7 @@ export function renderFinding(input: {
   location: Finding["location"];
   source: Finding["source"];
   slots: Record<string, string>;
+  trace?: Finding["trace"];
 }): Finding {
   const locale =
     input.language === "zh-CN"
@@ -263,6 +311,7 @@ export function renderFinding(input: {
     references: input.rule.references ?? [],
     relatedRuleIds: [],
     snippet: snippetAround(input.unit.sourceLines, input.location.startLine),
+    ...(input.trace ? { trace: input.trace } : {}),
   };
 }
 

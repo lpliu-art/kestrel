@@ -5,6 +5,7 @@ import { parse } from "yaml";
 import type { ResolvedConfig } from "../config/schema.ts";
 import type { KestrelPlugin } from "../plugins/api.ts";
 import { KestrelError } from "../util/errors.ts";
+import { compileChecks } from "./checks.ts";
 import {
   DIMENSIONS,
   type LoadedRule,
@@ -40,6 +41,7 @@ export async function loadRules(
       loaded.push(...parsePack(text, path, "project", "project"));
     }
   }
+  loaded.push(...compileChecks(config, config.warnings));
   return applyOverrides(loaded, config);
 }
 
@@ -150,7 +152,10 @@ export async function loadPackFiles(
   return files;
 }
 
-async function matchGlob(pattern: string, cwd: string): Promise<string[]> {
+export async function matchGlob(
+  pattern: string,
+  cwd: string,
+): Promise<string[]> {
   const matcher = picomatch(pattern, { dot: true });
   const out: string[] = [];
   const walk = async (dir: string, rel: string): Promise<void> => {

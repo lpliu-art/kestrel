@@ -30,6 +30,7 @@ export interface ContextInput {
   file: { path: string; newSource?: string };
   unit: { startLine: number; endLine: number; addedLines: number[] };
   tree?: unknown;
+  maxEnclosingLines?: number;
 }
 
 export interface UnitContext {

@@ -1,6 +1,7 @@
 import type { LoadedRule } from "../rules/schema.ts";
 import { type Anchor, compileRegex, lineHits } from "../rules/trigger.ts";
 import { injectionProbability } from "../security/injection.ts";
+import { treesitterHunkHit } from "../treesitter/query.ts";
 import { parseStateHunk } from "../units/state.ts";
 import { round6 } from "../util/json.ts";
 import { estimateTokens } from "./tokens.ts";
@@ -52,6 +53,20 @@ export function createMockProvider(rules: LoadedRule[]): JevProvider {
           const max = Math.max(0, ...ruleP.values());
           const score = max >= 0.8 ? 3 : max >= 0.5 ? 2 : max >= 0.2 ? 1 : 0;
           answers[key] = scoreAnswer(question, score);
+        } else if (key.startsWith("sa.") && key.endsWith(".real")) {
+          answers[key] = {
+            type: "noul",
+            noul: staticAlertProbability(hunk, question),
+          };
+        } else if (key.startsWith("sa.") && key.endsWith(".matters")) {
+          answers[key] = {
+            type: "noul",
+            noul: staticAlertProbability(hunk, question),
+          };
+        } else if (key.startsWith("sa.") && key.endsWith(".sev")) {
+          const text = `${hunk}\n${questionText(question)}`;
+          const index = /level"?:\s*"error"|level: error/i.test(text) ? 2 : 1;
+          answers[key] = scoreAnswer(question, index);
         } else if (key.startsWith("s.")) {
           const rule = byId.get(key.slice(2));
           answers[key] = scoreAnswer(question, severityIndex(rule));
@@ -82,6 +97,22 @@ export function createMockProvider(rules: LoadedRule[]): JevProvider {
   };
 }
 
+function staticAlertProbability(hunk: string, question: JevQuestion): number {
+  const text = `${hunk}\n${questionText(question)}`;
+  if (
+    /placeholder|false positive|eslint-disable|@ts-ignore|@ts-expect-error|\bnoqa\b|\bnosec\b|not a problem/i.test(
+      text,
+    )
+  )
+    return 0.1;
+  return 0.9;
+}
+
+function questionText(question: JevQuestion): string {
+  if (typeof question.instructions === "string") return question.instructions;
+  return JSON.stringify(question.instructions);
+}
+
 function hunkText(req: JevRequest): string {
   if (typeof req.state === "string") return req.state;
   if (req.state && typeof req.state === "object" && !Array.isArray(req.state)) {
@@ -99,11 +130,21 @@ function ruleProbability(rule: LoadedRule, hunk: string): number {
   const parsed = parseStateHunk(hunk);
   const addedText = parsed.added.map((line) => line.text).join("\n");
   const removedText = parsed.deleted.map((line) => line.text).join("\n");
+  const treesitter = treesitterHunkHit(rule, hunk);
+  const regexRule =
+    rule.trigger.kind === "treesitter" && rule.trigger.pattern
+      ? {
+          ...rule,
+          trigger: { ...rule.trigger, kind: "regex" as const },
+        }
+      : rule;
   const triggered =
-    lineHits(rule, addedText) ||
-    lineHits(rule, removedText) ||
-    parsed.added.some((line) => lineHits(rule, line.text)) ||
-    lineHits(rule, hunk);
+    treesitter === true ||
+    (treesitter !== false &&
+      (lineHits(regexRule, addedText) ||
+        lineHits(regexRule, removedText) ||
+        parsed.added.some((line) => lineHits(regexRule, line.text)) ||
+        lineHits(regexRule, hunk)));
   if (triggered) return 0.9;
   if (rule.trigger.kind === "always") return 0.2;
   if (rule.trigger.kind === "removed" && parsed.deleted.length > 0) return 0.9;

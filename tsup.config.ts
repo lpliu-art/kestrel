@@ -14,4 +14,5 @@ export default defineConfig({
   splitting: false,
   treeshake: true,
   outDir: "dist",
+  external: ["web-tree-sitter"],
 });

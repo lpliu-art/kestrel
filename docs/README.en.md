@@ -5,7 +5,7 @@
 
 [中文](README.md) · Design docs (Chinese): [research](01-research.md) · [concept](02-concept.md) · [technical design](03-technical-design.md) · [architecture](04-architecture.md) · [implementation plan](05-implementation-plan.md) · [repo layout](06-repo-layout.md)
 
-> ⚠️ Status: MVP 0.1.0 is implemented in this repository. These docs remain the design spec. Kestrel is a community project and is **not affiliated with TypeSafe AI**. Real reviews need a TypeSafe API key; access is governed by TypeSafe's own policy.
+> ⚠️ Status: 0.2.0 (P1) is implemented in this repository. These docs remain the design spec. Kestrel is a community project and is **not affiliated with TypeSafe AI**. Real reviews need a TypeSafe API key; access is governed by TypeSafe's own policy.
 
 ## Why Kestrel
 

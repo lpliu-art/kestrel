@@ -402,6 +402,63 @@
           },
           "snippet": {
             "type": "string"
+          },
+          "trace": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string"
+              },
+              "profile": {
+                "type": "string"
+              },
+              "thresholds": {
+                "type": "object",
+                "properties": {
+                  "report": {
+                    "type": "number"
+                  },
+                  "uncertain": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "report",
+                  "uncertain"
+                ],
+                "additionalProperties": false
+              },
+              "questions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "instructions": {},
+                    "answer": {}
+                  },
+                  "required": [
+                    "key",
+                    "type",
+                    "instructions",
+                    "answer"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "model",
+              "profile",
+              "thresholds",
+              "questions"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -524,6 +581,88 @@
       "items": {
         "type": "string"
       }
+    },
+    "static": {
+      "type": "object",
+      "properties": {
+        "imported": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "onDiff": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "kept": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "dropped": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "alerts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "type": "string"
+              },
+              "ruleId": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "keep",
+                  "drop"
+                ]
+              },
+              "real": {
+                "type": "number"
+              },
+              "matters": {
+                "type": "number"
+              },
+              "probability": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "tool",
+              "ruleId",
+              "path",
+              "line",
+              "decision",
+              "real",
+              "matters",
+              "probability"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "imported",
+        "onDiff",
+        "kept",
+        "dropped",
+        "alerts"
+      ],
+      "additionalProperties": false
     },
     "preview": {
       "type": "object",

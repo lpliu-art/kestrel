@@ -49,11 +49,6 @@ export function loadConfig(input: LoadConfigInput): ResolvedConfig {
   }
   applyEnv(resolved, env);
   applyCli(resolved, input.cli);
-  if (resolved.checks.length > 0) {
-    resolved.warnings.push(
-      `Ignoring ${resolved.checks.length} natural-language checks (not in this version).`,
-    );
-  }
   return resolved;
 }
 
@@ -183,9 +178,12 @@ function mergeUser(target: ResolvedConfig, user: UserConfig): void {
       "llm narration is not in this version; ignoring llm.enabled.",
     );
   }
-  if (user.static?.sarif && user.static.sarif.length > 0) {
+  if (user.static?.sarif) target.static.sarif = user.static.sarif;
+  if (user.static?.filterMode)
+    target.static.filterMode = user.static.filterMode;
+  if (user.static?.run === "auto") {
     target.warnings.push(
-      "SARIF input filtering is not in this version; ignoring static.sarif.",
+      "Static tools are not executed in this version; only SARIF files are read.",
     );
   }
 }

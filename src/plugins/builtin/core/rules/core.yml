@@ -220,3 +220,271 @@ rules:
                 "test": "vitest"
               }
             }
+
+  - id: core.ci.pr-target-checkout
+    title: { en: "pull_request_target checks out PR code", zh-CN: "pull_request_target 检出了 PR 代码" }
+    category: security
+    dimension: security
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'pull_request_target:'
+    question:
+      question: "Do the added lines in `hunk` trigger a workflow on pull_request_target?"
+      focus: "Lines marked with + that contain pull_request_target"
+      true: { what: "A workflow gained a pull_request_target trigger" }
+      false: { what: "The workflow uses pull_request or another unprivileged trigger" }
+    severity:
+      levels: ["A workflow that does not checkout the PR", "A workflow that runs PR-controlled code with secrets"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} adds a pull_request_target trigger."
+        why: "pull_request_target runs with the base repository secrets. Checking out the PR head can execute untrusted code."
+      zh-CN:
+        body: "第 {{line}} 行新增了 pull_request_target 触发器。"
+        why: "pull_request_target 会带着基础仓库的密钥运行。检出 PR head 可能执行不可信代码。"
+    fix:
+      hint:
+        en: "Prefer pull_request. If pull_request_target is required, do not checkout the PR head in a job that has secrets."
+        zh-CN: "优先使用 pull_request。如果必须用 pull_request_target，不要在持有密钥的 job 里检出 PR head。"
+    examples:
+      positive:
+        - path: .github/workflows/ci.yml
+          language: yaml
+          code: |
+            on:
+              pull_request_target:
+            jobs:
+              build:
+                runs-on: ubuntu-latest
+      negative:
+        - path: .github/workflows/ci.yml
+          language: yaml
+          code: |
+            on:
+              pull_request:
+            jobs:
+              build:
+                runs-on: ubuntu-latest
+
+  - id: core.security.weak-hash
+    title: { en: "Weak hash for a security use", zh-CN: "用于安全场景的弱哈希" }
+    category: security
+    dimension: security
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'createHash\(\s*.(?:md5|sha1).'
+    question:
+      question: "Do the added lines in `hunk` create an MD5 or SHA-1 hash?"
+      focus: "Lines marked with + that call createHash with md5 or sha1"
+      true: { what: "MD5 or SHA-1 is used" }
+      false: { what: "A stronger hash such as SHA-256 is used" }
+    severity:
+      levels: ["A non-security checksum", "A password or token digest"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} uses MD5 or SHA-1."
+        why: "MD5 and SHA-1 are cheap to collide and are not safe for passwords or tokens."
+      zh-CN:
+        body: "第 {{line}} 行使用了 MD5 或 SHA-1。"
+        why: "MD5 和 SHA-1 容易碰撞，不能用来保护密码或令牌。"
+    fix:
+      hint:
+        en: "Use SHA-256 for checksums and a password hash such as scrypt or argon2 for secrets."
+        zh-CN: "校验和改用 SHA-256；密码使用 scrypt 或 argon2。"
+    references: ["CWE-328"]
+    examples:
+      positive:
+        - code: |
+            const digest = crypto.createHash("md5").update(password).digest("hex");
+      negative:
+        - code: |
+            const digest = crypto.createHash("sha256").update(password).digest("hex");
+
+  - id: core.security.cleartext-http
+    title: { en: "Cleartext HTTP URL", zh-CN: "明文 HTTP 地址" }
+    category: security
+    dimension: security
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'http://'
+    question:
+      question: "Do the added lines in `hunk` introduce a cleartext http:// URL?"
+      focus: "Lines marked with + that contain http://"
+      true: { what: "A cleartext http URL was added" }
+      false: { what: "The URL uses https" }
+    severity:
+      levels: ["A local development URL", "A URL that sends credentials or user data"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} uses a cleartext http:// URL."
+        why: "Cleartext HTTP can be read or modified on the network."
+      zh-CN:
+        body: "第 {{line}} 行使用了明文 http:// 地址。"
+        why: "明文 HTTP 在网络上可以被读取或篡改。"
+    fix:
+      hint:
+        en: "Use https:// unless the endpoint is a documented local-only address."
+        zh-CN: "改用 https://，除非这是文档标明的仅本地地址。"
+    references: ["CWE-319"]
+    examples:
+      positive:
+        - code: |
+            const url = "http://example.com/api";
+      negative:
+        - code: |
+            const url = "https://example.com/api";
+
+  - id: core.reliability.empty-catch
+    title: { en: "Empty catch", zh-CN: "空的 catch" }
+    category: reliability
+    dimension: reliability
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'catch\s*\([^)]*\)\s*\{\s*\}'
+    question:
+      question: "Do the added lines in `hunk` catch an error and discard it?"
+      focus: "Lines marked with + that contain an empty catch"
+      true: { what: "A catch block has no handler" }
+      false: { what: "The catch logs or rethrows the error" }
+    severity:
+      levels: ["A best-effort cleanup", "An error the caller needed to see"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} catches an error and ignores it."
+        why: "An empty catch hides failures."
+      zh-CN:
+        body: "第 {{line}} 行捕获异常后没有处理。"
+        why: "空的 catch 会藏起失败。"
+    fix:
+      hint:
+        en: "Log the error or rethrow it."
+        zh-CN: "记录错误，或者重新抛出。"
+    examples:
+      positive:
+        - code: |
+            try { work(); } catch (error) {}
+      negative:
+        - code: |
+            try { work(); } catch (error) { logger.error(error); }
+
+  - id: core.security.tls-verify-off
+    title: { en: "TLS verification disabled", zh-CN: "关闭了 TLS 校验" }
+    category: security
+    dimension: security
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'rejectUnauthorized\s*:\s*false'
+    question:
+      question: "Do the added lines in `hunk` disable TLS certificate verification?"
+      focus: "Lines marked with + that set rejectUnauthorized to false"
+      true: { what: "Certificate verification is turned off" }
+      false: { what: "Certificate verification stays enabled" }
+    severity:
+      levels: ["A local test double", "A client that talks to a remote service"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} disables TLS certificate verification."
+        why: "Turning verification off allows a network attacker to impersonate the server."
+      zh-CN:
+        body: "第 {{line}} 行关闭了 TLS 证书校验。"
+        why: "关闭校验后，网络攻击者可以冒充服务器。"
+    fix:
+      hint:
+        en: "Leave verification on and trust the service certificate or a private CA."
+        zh-CN: "保持校验开启，信任服务证书或私有 CA。"
+    references: ["CWE-295"]
+    examples:
+      positive:
+        - code: |
+            const agent = new https.Agent({ rejectUnauthorized: false });
+      negative:
+        - code: |
+            const agent = new https.Agent({ rejectUnauthorized: true });
+
+  - id: core.deps.unpinned-action
+    title: { en: "Unpinned GitHub Action", zh-CN: "未固定版本的 GitHub Action" }
+    category: security
+    dimension: security
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'uses:\s*[\w.-]+/[\w.-]+@v\d+'
+    question:
+      question: "Do the added lines in `hunk` reference a GitHub Action by a moving major tag?"
+      focus: "Lines marked with + that use owner/action@vN"
+      true: { what: "An action is pinned only to a major tag" }
+      false: { what: "The action is pinned to a commit SHA" }
+    severity:
+      levels: ["A local workflow", "A workflow that runs with secrets"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} references a GitHub Action by a moving tag."
+        why: "A tag such as @v4 can move and run different code on the next build."
+      zh-CN:
+        body: "第 {{line}} 行用可变标签引用了 GitHub Action。"
+        why: "@v4 这样的标签会移动，下次构建可能跑到不同的代码。"
+    fix:
+      hint:
+        en: "Pin the action to a full commit SHA."
+        zh-CN: "把 Action 固定到完整的 commit SHA。"
+    examples:
+      positive:
+        - code: |
+            - uses: actions/checkout@v4
+      negative:
+        - code: |
+            - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+  - id: core.security.eval-call
+    title: { en: "eval of dynamic text", zh-CN: "对动态文本执行 eval" }
+    category: security
+    dimension: security
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\beval\s*\('
+    question:
+      question: "Do the added lines in `hunk` call eval?"
+      focus: "Lines marked with + that call eval"
+      true: { what: "eval is called" }
+      false: { what: "The code does not call eval" }
+    severity:
+      levels: ["A constant expression", "Text that can come from outside the program"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls eval."
+        why: "eval executes its argument as code."
+      zh-CN:
+        body: "第 {{line}} 行调用了 eval。"
+        why: "eval 会把参数当作代码执行。"
+    fix:
+      hint:
+        en: "Parse the data with a dedicated parser instead of eval."
+        zh-CN: "用专门的解析器处理数据，不要用 eval。"
+    references: ["CWE-95"]
+    examples:
+      positive:
+        - code: |
+            const value = eval(input);
+      negative:
+        - code: |
+            const value = JSON.parse(input);

@@ -62,6 +62,13 @@ export function renderMarkdown(
     }
     lines.push("</details>", "");
   }
+  if (report.static) {
+    lines.push(`## ${zh ? "静态告警" : "Static alerts"}`, "");
+    lines.push(
+      `${zh ? "导入" : "Imported"} ${report.static.imported}, ${zh ? "保留" : "kept"} ${report.static.kept}, ${zh ? "丢弃" : "dropped"} ${report.static.dropped}`,
+    );
+    lines.push("");
+  }
   if (report.handoff.deepReview.length > 0) {
     lines.push(`## ${zh ? "建议深审" : "Deep review"}`, "");
     for (const file of report.handoff.deepReview)

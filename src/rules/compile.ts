@@ -215,9 +215,17 @@ export function batchQuestions(
   return batches;
 }
 
+export function defaultLocate(
+  rule: Pick<LoadedRule, "locate" | "trigger">,
+): "trigger" | "choose" | "unit" {
+  if (rule.locate) return rule.locate;
+  if (rule.trigger.kind === "regex" || rule.trigger.kind === "treesitter")
+    return "trigger";
+  return "choose";
+}
+
 export function needsPass2(rule: LoadedRule, anchors: Anchor[]): boolean {
-  const locate =
-    rule.locate ?? (rule.trigger.kind === "regex" ? "trigger" : "choose");
+  const locate = defaultLocate(rule);
   if (locate === "unit") return false;
   if (locate === "trigger" && anchors.length > 0) return false;
   return anchors.length === 0 || locate === "choose";
