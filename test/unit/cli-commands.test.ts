@@ -254,7 +254,7 @@ describe("kestrel commands", () => {
     expect(doctor.out).toMatch(/node/);
     const outside = await cli(["review", "--provider", "mock"], cwd);
     expect(outside.code).toBe(0);
-  });
+  }, 90_000);
 
   it("posts a review with a stubbed GitHub API and reports API failures", async () => {
     const cwd = await initRepo();

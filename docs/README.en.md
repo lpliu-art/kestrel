@@ -5,7 +5,7 @@
 
 [中文](README.md) · Design docs (Chinese): [research](01-research.md) · [concept](02-concept.md) · [technical design](03-technical-design.md) · [architecture](04-architecture.md) · [implementation plan](05-implementation-plan.md) · [repo layout](06-repo-layout.md)
 
-> ⚠️ Status: 0.2.0 (P1) is implemented in this repository. These docs remain the design spec. Kestrel is a community project and is **not affiliated with TypeSafe AI**. Real reviews need a TypeSafe API key; access is governed by TypeSafe's own policy.
+> ⚠️ Status: 0.3.0 (P2) is implemented in this repository. These docs remain the design spec. Kestrel is a community project and is **not affiliated with TypeSafe AI**. Real reviews need a TypeSafe API key; access is governed by TypeSafe's own policy. The LLM narrator is off by default and reads `KESTREL_LLM_API_KEY`.
 
 ## Why Kestrel
 
@@ -80,6 +80,11 @@ kestrel rules list --lang python
 kestrel rules show ts.security.sql-string-concat                # compiled Jev questions for a rule
 kestrel rules test                                              # run all rule examples
 kestrel explain <findingId> --report kestrel.json               # every question/answer behind a finding (P1)
+kestrel explain pr --report kestrel.json                        # pull-request risk and test gap (P2)
+kestrel scan <paths...>                                         # whole-file audit (P2)
+kestrel review --llm                                            # optional narrator, off by default (P2)
+kestrel review --incremental --from main                        # only commits since the last successful review (P2)
+kestrel gitlab post --report kestrel.json --project group/app --mr 1
 ```
 
 Exit codes:

@@ -128,6 +128,8 @@
 
 ## 3. P2 —— 叙述器、语言与生态扩展
 
+> 状态：0.3.0 已在本仓库实现。计划里 Rust/C# 的下限是各 ≥ 8 条规则；实现按与既有插件相同的标准写了各 12 条。GitLab「在测试项目跑通」没有可用的测试项目，由注入的 fetch 覆盖。Codex/Cursor 清单已按公开文档核对字段并放进仓库，没有提交到公共插件目录。
+
 | # | 任务 | 验收标准 |
 |---|---|---|
 | P2-1 | LLM 叙述器（OpenAI-compatible `/chat/completions`、Anthropic `/v1/messages`，仅 `fetch`）+ Jev 复核（addresses / unrelated / contradicts 三问，不通过则回退模板） | 默认关闭；开启后仅对 top-N report 带发现调用；复核失败率与回退在报告中可见；无 LLM key 时行为与 MVP 完全一致 |

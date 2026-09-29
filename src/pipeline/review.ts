@@ -13,10 +13,12 @@ import {
   readNewSource,
 } from "../git/diff-provider.ts";
 import { type ChangedFile, splitSourceLines } from "../git/unified-diff.ts";
+import { incrementalSince, writeIncremental } from "../incremental/state.ts";
 import { buildProvider } from "../jev/factory.ts";
 import { estimateRequestTokens } from "../jev/tokens.ts";
 import { dedupeFindings } from "../judge/dedupe.ts";
 import { selectRules } from "../judge/pass1.ts";
+import { judgePullRequest } from "../judge/pull-request.ts";
 import {
   fileRisks,
   type UnitRisk,
@@ -24,6 +26,8 @@ import {
 } from "../judge/risk.ts";
 import { decideVerdict, reviewExitCode } from "../judge/verdict.ts";
 import { detectLanguage } from "../lang/detect.ts";
+import { reviewSlices } from "../lang/vue-sfc.ts";
+import { narrateFindings } from "../narrate/run.ts";
 import { loadPlugins } from "../plugins/loader.ts";
 import { renderJson } from "../render/json.ts";
 import { renderMarkdown } from "../render/markdown.ts";
@@ -87,6 +91,8 @@ export interface ReviewOptions {
   sarifIncludeUncertain?: boolean;
   sarifIn?: string[];
   logPayload?: boolean;
+  llm?: boolean;
+  incremental?: boolean;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
   now?: () => Date;
@@ -134,6 +140,17 @@ export async function runReview(
   const mode =
     options.mode ??
     (options.commit ? "commit" : options.from ? "range" : "workspace");
+  let since: string | undefined;
+  let incrementalWarning: string | undefined;
+  if (
+    options.incremental &&
+    mode !== "scan" &&
+    (mode === "range" || mode === "workspace")
+  ) {
+    const resolved = await incrementalSince(cwd, options.to ?? "HEAD");
+    since = resolved.since;
+    incrementalWarning = resolved.warning;
+  }
   const diff = await loadDiff({
     cwd,
     mode,
@@ -141,10 +158,12 @@ export async function runReview(
     from: options.from,
     to: options.to,
     paths: options.paths,
+    since,
   });
   const facts = await detectFacts(registry, cwd);
   const planned = await planFiles(diff, cwd, config, registry, rules, facts);
   const warnings = [...config.warnings, ...drainGrammarWarnings()];
+  if (incrementalWarning) warnings.push(incrementalWarning);
   if (options.untrusted && config.static.sarif.length > 0) {
     warnings.push(
       "Untrusted mode: static tools are not executed; reading SARIF input only.",
@@ -304,6 +323,25 @@ export async function runReview(
   }));
   const responseModel =
     judgements.find((item) => item.model)?.model ?? config.jev.model;
+  const testsChanged = [
+    ...new Set(planned.units.flatMap((item) => item.unit.testsChanged)),
+  ].sort();
+  const pullRequest = await judgePullRequest({
+    provider: built.provider,
+    model: config.jev.model,
+    files: planned.files.map((file) => file.path),
+    testsChanged,
+    language: config.output.language,
+  });
+  const narrated = await narrateFindings({
+    findings,
+    settings: config.llm,
+    env,
+    provider: built.provider,
+    model: config.jev.model,
+    fetchImpl: options.fetchImpl,
+  });
+  if (narrated.warning) warnings.push(narrated.warning);
   const report = assemble({
     config,
     diff,
@@ -320,7 +358,12 @@ export async function runReview(
     payloads: previewPayloads,
     risks,
     staticSummary,
+    narration: narrated.narration,
+    pullRequest,
   });
+  if (options.incremental && report.run.status === "ok" && diff.head) {
+    await writeIncremental(cwd, diff.head);
+  }
   return finish(report, options, config);
 }
 
@@ -356,6 +399,7 @@ function cliFrom(options: ReviewOptions): LoadConfigInput["cli"] {
     noCache: options.noCache,
     failOn: options.failOn,
     minP: options.minP,
+    llm: options.llm,
   };
 }
 
@@ -444,48 +488,52 @@ async function planFiles(
       });
       continue;
     }
-    const plugin = registry.pluginForLanguage(languageId);
     const sourceLines =
       source === undefined ? sourceFromHunks(file) : splitSourceLines(source);
     const sourceText = sourceLines.join("\n");
-    const built = buildUnits(
-      file,
-      sourceLines,
-      languageId,
-      plugin?.id ?? "core",
-      config.limits,
-      {
-        frameworks: facts,
-        testsChanged: relatedTests(file.path, testPaths),
-        enclosingAt: (line) => enclosingIdentity(sourceText, languageId, line),
-      },
-    );
+    const slices = reviewSlices(file, languageId, sourceText);
     files.push({ path: file.path, language: languageId });
-    for (const unit of built) {
-      const selected = selectRules(
-        unit,
-        rules,
-        config.limits.maxRulesPerUnit,
-      ).selected;
-      const context = plugin?.context
-        ? await plugin.context.build({
-            languageId,
-            file: { path: file.path, newSource: source },
-            unit: {
-              startLine: unit.startLine,
-              endLine: unit.endLine,
-              addedLines: unit.addedLineNumbers,
-            },
-            maxEnclosingLines: config.privacy.maxEnclosingLines,
-          })
-        : undefined;
-      const state = buildReviewState({
-        unit,
-        rules: selected,
-        context,
-        redact: config.privacy.redactSecrets,
-      });
-      units.push({ unit, state, rules: selected });
+    for (const slice of slices) {
+      const plugin = registry.pluginForLanguage(slice.languageId);
+      const built = buildUnits(
+        slice.file,
+        sourceLines,
+        slice.languageId,
+        plugin?.id ?? "core",
+        config.limits,
+        {
+          frameworks: facts,
+          testsChanged: relatedTests(file.path, testPaths),
+          enclosingAt: (line) =>
+            enclosingIdentity(sourceText, slice.languageId, line),
+        },
+      );
+      for (const unit of built) {
+        const selected = selectRules(
+          unit,
+          rules,
+          config.limits.maxRulesPerUnit,
+        ).selected;
+        const context = plugin?.context
+          ? await plugin.context.build({
+              languageId: slice.languageId,
+              file: { path: file.path, newSource: source },
+              unit: {
+                startLine: unit.startLine,
+                endLine: unit.endLine,
+                addedLines: unit.addedLineNumbers,
+              },
+              maxEnclosingLines: config.privacy.maxEnclosingLines,
+            })
+          : undefined;
+        const state = buildReviewState({
+          unit,
+          rules: selected,
+          context,
+          redact: config.privacy.redactSecrets,
+        });
+        units.push({ unit, state, rules: selected });
+      }
     }
   }
   skipped.sort(
@@ -610,6 +658,8 @@ function assemble(input: {
   estimatedTokens?: number;
   risks?: UnitRisk[];
   staticSummary?: Report["static"];
+  narration?: Report["narration"];
+  pullRequest?: Report["pullRequest"];
 }): Report {
   const findings = dedupeFindings(input.findings);
   const reportPaths = new Set(
@@ -692,6 +742,8 @@ function assemble(input: {
     },
     warnings: [...new Set(input.warnings)],
     ...(input.staticSummary ? { static: input.staticSummary } : {}),
+    ...(input.narration ? { narration: input.narration } : {}),
+    ...(input.pullRequest ? { pullRequest: input.pullRequest } : {}),
   };
   if (input.payloads) {
     report.preview = {

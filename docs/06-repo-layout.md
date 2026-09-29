@@ -86,6 +86,10 @@ kestrel/                                 # github.com/lpliu-art/kestrel
 │   └── github/                          [P1]
 │       ├── post.ts                      Octokit：review + 行内评论 + 粘性汇总
 │       └── fingerprint.ts
+│   ├── gitlab/                          [P2] MR discussions，指纹去重
+│   ├── scan/                            [P2] 全文件虚拟 diff
+│   ├── incremental/                     [P2] 上次 head 之后的提交
+│   └── judge/pull-request.ts            [P2] PR 级风险与测试缺口
 ├── schemas/                             [MVP] 由 zod 生成并提交（CI 校验无漂移）
 │   ├── config.schema.json
 │   ├── rule.schema.json

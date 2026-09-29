@@ -1,0 +1,6 @@
+{
+  "name": "kestrel",
+  "version": "0.3.0",
+  "description": "Fast, calibrated code review with the kestrel CLI. Judgments come from TypeSafe Jev.",
+  "skills": "./skills/"
+}

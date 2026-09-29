@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "kestrel",
+  "version": "0.3.0",
+  "description": "Fast, calibrated code review with the kestrel CLI. Judgments come from TypeSafe Jev. Comment text comes from rule templates.",
+  "homepage": "https://github.com/lpliu-art/kestrel",
+  "repository": "https://github.com/lpliu-art/kestrel",
+  "license": "Apache-2.0",
+  "keywords": ["code-review", "kestrel", "jev"]
+}

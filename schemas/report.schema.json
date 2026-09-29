@@ -53,7 +53,8 @@
             "staged",
             "commit",
             "range",
-            "snippet"
+            "snippet",
+            "scan"
           ]
         },
         "base": {
@@ -661,6 +662,93 @@
         "kept",
         "dropped",
         "alerts"
+      ],
+      "additionalProperties": false
+    },
+    "narration": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "attempted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "kept": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "fallback": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "verifyFailed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "enabled",
+        "attempted",
+        "kept",
+        "fallback",
+        "verifyFailed"
+      ],
+      "additionalProperties": false
+    },
+    "pullRequest": {
+      "type": "object",
+      "properties": {
+        "risk": {
+          "type": "number"
+        },
+        "testGap": {
+          "type": "number"
+        },
+        "testsChanged": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "conclusion": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "instructions": {},
+              "answer": {}
+            },
+            "required": [
+              "key",
+              "instructions",
+              "answer"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "risk",
+        "testGap",
+        "testsChanged",
+        "conclusion",
+        "model",
+        "questions"
       ],
       "additionalProperties": false
     },

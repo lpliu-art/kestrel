@@ -76,6 +76,11 @@ export function createMockProvider(rules: LoadedRule[]): JevProvider {
             question,
             rule ? chooseLine(rule, req) : "none",
           );
+        } else if (key === "pr.risk" || key === "pr.tests") {
+          answers[key] = {
+            type: "noul",
+            noul: pullRequestProbability(key, req),
+          };
         } else if (question.type === "choice") {
           answers[key] = choiceAnswer(question, "other");
         } else if (question.type === "score") {
@@ -95,6 +100,13 @@ export function createMockProvider(rules: LoadedRule[]): JevProvider {
       };
     },
   };
+}
+
+function pullRequestProbability(key: string, req: JevRequest): number {
+  const text = hunkText(req);
+  if (key === "pr.tests")
+    return /"tests_changed":\[\]/.test(text) ? 0.84 : 0.12;
+  return /"files":\[\]/.test(text) ? 0.12 : 0.81;
 }
 
 function staticAlertProbability(hunk: string, question: JevQuestion): number {

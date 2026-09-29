@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { scanFiles } from "../scan/files.ts";
 import { KestrelError } from "../util/errors.ts";
 import { git } from "./exec.ts";
 import {
@@ -8,7 +9,7 @@ import {
   parseUnifiedDiff,
 } from "./unified-diff.ts";
 
-export type DiffMode = "workspace" | "staged" | "commit" | "range";
+export type DiffMode = "workspace" | "staged" | "commit" | "range" | "scan";
 
 export interface DiffQuery {
   cwd: string;
@@ -17,6 +18,8 @@ export interface DiffQuery {
   from?: string;
   to?: string;
   paths?: string[];
+  /** Diff this commit to the head instead of the merge-base. */
+  since?: string;
 }
 
 export interface DiffSet {
@@ -36,6 +39,9 @@ const DIFF_ARGS = [
 ];
 
 export async function loadDiff(query: DiffQuery): Promise<DiffSet> {
+  if (query.mode === "scan") {
+    return { mode: "scan", files: await scanFiles(query) };
+  }
   await assertGitRepo(query.cwd);
   if (query.mode === "staged") return loadStaged(query);
   if (query.mode === "commit") return loadCommit(query);
@@ -53,6 +59,20 @@ async function assertGitRepo(cwd: string): Promise<void> {
 }
 
 async function loadWorkspace(query: DiffQuery): Promise<DiffSet> {
+  if (query.since) {
+    const since = await revParse(query.cwd, query.since, false);
+    const head = await revParse(query.cwd, "HEAD", true);
+    const diff = await git(
+      ["diff", since, ...DIFF_ARGS, "--", ...(query.paths ?? [])],
+      query.cwd,
+    );
+    return {
+      mode: "workspace",
+      base: since,
+      ...(head ? { head } : {}),
+      files: parseUnifiedDiff(diff.stdout),
+    };
+  }
   const head = await revParse(query.cwd, "HEAD", true);
   let files: ChangedFile[] = [];
   if (head) {
@@ -119,6 +139,19 @@ async function loadRange(query: DiffQuery): Promise<DiffSet> {
     throw new KestrelError("--from requires a revision", 2, "usage");
   const to = query.to ?? "HEAD";
   const head = await revParse(query.cwd, to, false);
+  if (query.since) {
+    const since = await revParse(query.cwd, query.since, false);
+    const diff = await git(
+      ["diff", since, head, ...DIFF_ARGS, "--", ...(query.paths ?? [])],
+      query.cwd,
+    );
+    return {
+      mode: "range",
+      base: since,
+      head,
+      files: parseUnifiedDiff(diff.stdout),
+    };
+  }
   const baseResult = await git(["merge-base", query.from, head], query.cwd, {
     allowFail: true,
   });

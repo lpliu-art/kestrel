@@ -88,3 +88,262 @@ rules:
           path: src/List.tsx
           code: |
             items.map((item) => <li key={item.id}>{item}</li>);
+
+  - id: react.effect.missing-cleanup
+    title: { en: "Effect without cleanup", zh-CN: "Effect 没有清理" }
+    category: reliability
+    dimension: reliability
+    applies:
+      languages: [tsx, javascript, typescript]
+      frameworks: [react]
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'addEventListener\([^;]+;\s*\}'
+    question:
+      question: "Do the added lines in `hunk` subscribe to an event inside an effect and return no cleanup?"
+      focus: "Lines marked with + that call addEventListener and then close the effect"
+      true: { what: "An event listener is registered and the effect does not remove it" }
+      false: { what: "The effect returns a function that removes the listener" }
+    severity:
+      levels: ["A listener in a rarely mounted component", "A listener that leaks on every mount"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} registers an event listener in an effect without returning a cleanup."
+        why: "The listener stays attached after the component unmounts."
+      zh-CN:
+        body: "第 {{line}} 行在 effect 里注册了事件监听，但没有返回清理函数。"
+        why: "组件卸载后监听仍会挂着。"
+    fix:
+      hint:
+        en: "Return a function from the effect that calls removeEventListener."
+        zh-CN: "从 effect 返回函数，并在其中调用 removeEventListener。"
+    examples:
+      positive:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            useEffect(() => { window.addEventListener("resize", onResize); }, []);
+      negative:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            useEffect(() => { window.addEventListener("resize", onResize); return () => window.removeEventListener("resize", onResize); }, []);
+
+  - id: react.effect.empty-deps
+    title: { en: "Effect with empty dependencies", zh-CN: "空依赖的 Effect" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [tsx, javascript, typescript]
+      frameworks: [react]
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'useEffect\(\s*\(\)\s*=>\s*\{[^}]*\},\s*\[\s*\]\s*\)'
+    question:
+      question: "Do the added lines in `hunk` read a changing value inside an effect whose dependency list is empty?"
+      focus: "Lines marked with + that call useEffect with []"
+      true: { what: "The effect body uses a value and the dependency list is empty" }
+      false: { what: "The dependency list includes the values the effect reads" }
+    severity:
+      levels: ["A mount-only effect", "An effect that closes over props or state"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} runs an effect with an empty dependency list."
+        why: "Values read inside the effect will not update on later renders."
+      zh-CN:
+        body: "第 {{line}} 行的 effect 依赖列表是空的。"
+        why: "effect 里读到的值在后续渲染中不会更新。"
+    fix:
+      hint:
+        en: "List every value the effect reads, or move the read inside the effect with a ref."
+        zh-CN: "把 effect 读到的值写进依赖列表，或改用 ref。"
+    examples:
+      positive:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            useEffect(() => { load(userId); }, []);
+      negative:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            useEffect(() => { load(userId); }, [userId]);
+
+  - id: react.effect.missing-deps
+    title: { en: "Effect without a dependency list", zh-CN: "Effect 没有依赖列表" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [tsx, javascript, typescript]
+      frameworks: [react]
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'useEffect\(\s*\(\)\s*=>\s*\{[^}]*\}\s*\)'
+    question:
+      question: "Do the added lines in `hunk` call useEffect without a dependency list?"
+      focus: "Lines marked with + that call useEffect and close it without an array"
+      true: { what: "useEffect is called with only a function" }
+      false: { what: "useEffect receives a dependency array" }
+    severity:
+      levels: ["An effect that is cheap to repeat", "An effect that fetches or subscribes on every render"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} calls useEffect without a dependency list."
+        why: "The effect runs after every render."
+      zh-CN:
+        body: "第 {{line}} 行调用 useEffect 时没有依赖列表。"
+        why: "这个 effect 会在每次渲染后执行。"
+    fix:
+      hint:
+        en: "Pass a dependency array as the second argument."
+        zh-CN: "把依赖数组作为第二个参数传入。"
+    examples:
+      positive:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            useEffect(() => { document.title = name; });
+      negative:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            useEffect(() => { document.title = name; }, [name]);
+
+  - id: react.security.dangerously-set-html
+    title: { en: "Raw HTML injection", zh-CN: "注入原始 HTML" }
+    category: security
+    dimension: security
+    applies:
+      languages: [tsx, javascript]
+      frameworks: [react]
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'dangerouslySetInnerHTML'
+    question:
+      question: "Do the added lines in `hunk` pass content to dangerouslySetInnerHTML?"
+      focus: "Lines marked with + that set dangerouslySetInnerHTML"
+      true: { what: "Raw HTML is inserted into the DOM" }
+      false: { what: "Text is rendered as children" }
+    severity:
+      levels: ["Constant markup", "Markup that may include user input"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} inserts raw HTML with dangerouslySetInnerHTML."
+        why: "Unescaped HTML from user input is cross-site scripting."
+      zh-CN:
+        body: "第 {{line}} 行通过 dangerouslySetInnerHTML 插入了原始 HTML。"
+        why: "来自用户输入的未转义 HTML 会变成跨站脚本。"
+    fix:
+      hint:
+        en: "Render text children, or sanitize the HTML with a reviewed allowlist."
+        zh-CN: "改渲染文本子节点；如果必须渲染 HTML，用经过审查的白名单净化。"
+    references: ["CWE-79"]
+    examples:
+      positive:
+        - language: tsx
+          path: src/Html.tsx
+          code: |
+            <div dangerouslySetInnerHTML={{ __html: userHtml }} />
+      negative:
+        - language: tsx
+          path: src/Html.tsx
+          code: |
+            <div>{userHtml}</div>
+
+  - id: react.hooks.loop-call
+    title: { en: "Hook called in a loop", zh-CN: "在循环里调用 Hook" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [tsx, javascript, typescript]
+      frameworks: [react]
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'for\s*\([^)]*\)\s*\{[^}]*\buse(?:State|Effect|Memo|Callback|Ref)\s*\('
+    question:
+      question: "Do the added lines in `hunk` call a React Hook inside a loop?"
+      focus: "Lines marked with + where useState or useEffect appears inside for"
+      true: { what: "A Hook is called from inside a loop" }
+      false: { what: "Hooks are called once at the top of the component" }
+    severity:
+      levels: ["A loop that runs a fixed number of times", "A loop whose length can change"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls a Hook inside a loop."
+        why: "The number of Hook calls must stay the same on every render."
+      zh-CN:
+        body: "第 {{line}} 行在循环里调用了 Hook。"
+        why: "每次渲染的 Hook 调用次数必须保持一致。"
+    fix:
+      hint:
+        en: "Call the Hook once and store the list in state."
+        zh-CN: "只调用一次 Hook，把列表放进 state。"
+    examples:
+      positive:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            for (const item of items) { useState(item); }
+      negative:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            const [item, setItem] = useState(items[0]);
+
+  - id: react.state.direct-mutation
+    title: { en: "Direct state mutation", zh-CN: "直接修改 state" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [tsx, javascript, typescript]
+      frameworks: [react]
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\bstate\.[A-Za-z]+\.(push|pop|splice|sort|reverse)\('
+    question:
+      question: "Do the added lines in `hunk` mutate a state object in place?"
+      focus: "Lines marked with + that call push, pop, splice, sort, or reverse on state"
+      true: { what: "A state array is mutated in place" }
+      false: { what: "A new array is passed to the state setter" }
+    severity:
+      levels: ["A mutation that happens to re-render", "A mutation React will not notice"]
+      map: [medium, high]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} mutates state in place."
+        why: "React compares state by identity, so an in-place change can skip rendering."
+      zh-CN:
+        body: "第 {{line}} 行就地修改了 state。"
+        why: "React 按引用比较 state，就地修改可能不会触发渲染。"
+    fix:
+      hint:
+        en: "Pass a new array to the setter, such as setItems([...items, item])."
+        zh-CN: "把新数组传给 setter，例如 setItems([...items, item])。"
+    examples:
+      positive:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            state.items.push(item);
+      negative:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            setItems([...items, item]);

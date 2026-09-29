@@ -66,6 +66,14 @@ export function renderTerminal(
       lines.push(pc.dim(`  ${finding.message}`));
     }
   }
+  if (report.pullRequest) lines.push(report.pullRequest.conclusion);
+  if (report.narration?.enabled) {
+    lines.push(
+      zh
+        ? `叙述器：尝试 ${report.narration.attempted}，保留 ${report.narration.kept}，回退 ${report.narration.fallback}，复核失败 ${report.narration.verifyFailed}。`
+        : `Narrator: attempted ${report.narration.attempted}, kept ${report.narration.kept}, fallback ${report.narration.fallback}, verify failed ${report.narration.verifyFailed}.`,
+    );
+  }
   if (report.handoff.deepReview.length > 0) {
     for (const file of report.handoff.deepReview) {
       lines.push(

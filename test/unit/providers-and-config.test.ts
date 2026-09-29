@@ -185,7 +185,10 @@ static:
     expect(loaded.checks).toHaveLength(1);
     expect(loaded.static.filterMode).toBe("diff_context");
     expect(loaded.privacy.sendImports).toBe("never");
-    expect(loaded.warnings.join(" ")).toMatch(/llm narration/);
+    expect(loaded.llm.enabled).toBe(true);
+    expect(loaded.llm.protocol).toBe("openai");
+    expect(loaded.llm.maxFindings).toBe(10);
+    expect(loaded.warnings.join(" ")).not.toMatch(/llm narration/);
     expect(loaded.warnings.join(" ")).toMatch(/Static tools are not executed/);
     expect(
       (

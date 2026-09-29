@@ -26,6 +26,7 @@ export interface LoadConfigInput {
     failOn?: ResolvedConfig["gate"]["failOn"];
     minP?: number;
     baseURL?: string;
+    llm?: boolean;
   };
 }
 
@@ -173,11 +174,14 @@ function mergeUser(target: ResolvedConfig, user: UserConfig): void {
     target.privacy.sendImports = user.privacy.sendImports;
   if (user.languages?.overrides)
     target.languages.overrides = user.languages.overrides;
-  if (user.llm?.enabled) {
-    target.warnings.push(
-      "llm narration is not in this version; ignoring llm.enabled.",
-    );
-  }
+  if (user.llm?.enabled !== undefined) target.llm.enabled = user.llm.enabled;
+  if (user.llm?.protocol) target.llm.protocol = user.llm.protocol;
+  if (user.llm?.baseURL) target.llm.baseURL = user.llm.baseURL;
+  if (user.llm?.model !== undefined) target.llm.model = user.llm.model;
+  if (user.llm?.apiKeyEnv) target.llm.apiKeyEnv = user.llm.apiKeyEnv;
+  if (user.llm?.maxFindings) target.llm.maxFindings = user.llm.maxFindings;
+  if (user.llm?.verifyWithJev !== undefined)
+    target.llm.verifyWithJev = user.llm.verifyWithJev;
   if (user.static?.sarif) target.static.sarif = user.static.sarif;
   if (user.static?.filterMode)
     target.static.filterMode = user.static.filterMode;
@@ -242,6 +246,7 @@ function applyCli(target: ResolvedConfig, cli: LoadConfigInput["cli"]): void {
   if (cli.failOn) target.gate.failOn = cli.failOn;
   if (cli.minP !== undefined) target.gate.minProbability = cli.minP;
   if (cli.baseURL) target.jev.baseURL = cli.baseURL;
+  if (cli.llm) target.llm.enabled = true;
 }
 
 export function maskConfig(

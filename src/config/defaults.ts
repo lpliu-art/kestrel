@@ -103,6 +103,15 @@ export function defaultConfig(): ResolvedConfig {
       maxEnclosingLines: 120,
       sendImports: "auto",
     },
+    llm: {
+      enabled: false,
+      protocol: "openai",
+      baseURL: "https://api.openai.com/v1",
+      model: "",
+      apiKeyEnv: "KESTREL_LLM_API_KEY",
+      maxFindings: 10,
+      verifyWithJev: true,
+    },
     languages: { overrides: [] },
     warnings: [],
   };
@@ -161,6 +170,15 @@ static:
 gate:
   failOn: high                # low | medium | high | critical
   minProbability: 0.8
+
+llm:                          # optional narrator; off unless enabled
+  enabled: false
+  protocol: openai            # openai | anthropic
+  baseURL: https://api.openai.com/v1
+  model: ""
+  apiKeyEnv: KESTREL_LLM_API_KEY
+  maxFindings: 10
+  verifyWithJev: true
 
 privacy:
   redactSecrets: true

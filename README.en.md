@@ -5,7 +5,7 @@
 
 [中文](README.md) · [research](docs/01-research.md) · [concept](docs/02-concept.md) · [technical design](docs/03-technical-design.md) · [architecture](docs/04-architecture.md) · [implementation plan](docs/05-implementation-plan.md) · [layout](docs/06-repo-layout.md)
 
-> Status: 0.2.0 (P1). Kestrel is a community project and is **not affiliated with TypeSafe AI**. A real review needs `TYPESAFE_API_KEY`. Without a key, use `--provider mock`. Those results are not AI judgments.
+> Status: 0.3.0 (P2). Kestrel is a community project and is **not affiliated with TypeSafe AI**. A real review needs `TYPESAFE_API_KEY`. Without a key, use `--provider mock`. Those results are not AI judgments.
 
 ## Why Kestrel
 
@@ -14,7 +14,7 @@ Kestrel treats review as **rules as questions**:
 1. A deterministic pipeline reads the git diff, selects files, and matches rule triggers.
 2. Each rule becomes Jev questions (hit, counter-evidence guard, severity, line location), asked together for one review unit.
 3. Probabilities band the result into report, uncertain, or drop. Comments anchor to real added lines.
-4. Chinese and English text comes from templates. An LLM narrator is not in this version.
+4. Chinese and English text comes from templates. The optional LLM narrator is off by default. It rewrites comment text only. It does not change Jev's judgments, severities, or which findings are reported.
 
 ## Try it
 
@@ -63,16 +63,21 @@ kestrel review --preview --show-payload
 kestrel review --gate --fail-on high
 kestrel review --sarif-in 'reports/*.sarif'
 kestrel explain f_2078a579 --report kestrel.json
+kestrel explain pr --report kestrel.json
 kestrel doctor
+kestrel scan src
+kestrel review --incremental --from main
+kestrel review --llm
 kestrel github post --report kestrel.json --pr 1 --sticky --event auto
+kestrel gitlab post --report kestrel.json --project group/app --mr 1
 kestrel rules test
 kestrel rules lint
 kestrel rules show team.api.validate-body --config .kestrel.yml
 ```
 
-Exit codes: `0` pass, `1` gate failed, `2` usage or config error, `3` provider or auth error, `4` partial run with `--strict` (also a failed `github post --strict`).
+Exit codes: `0` pass, `1` gate failed, `2` usage or config error, `3` provider or auth error, `4` partial run with `--strict` (also a failed `github post --strict` or `gitlab post --strict`).
 
-Configuration is `.kestrel.yml`. Environment variables are `KESTREL_PROVIDER`, `KESTREL_MODEL`, `KESTREL_PROFILE`, `KESTREL_LANG`, and `TYPESAFE_API_KEY`. See `examples/.kestrel.yml`.
+Configuration is `.kestrel.yml`. Environment variables are `KESTREL_PROVIDER`, `KESTREL_MODEL`, `KESTREL_PROFILE`, `KESTREL_LANG`, `TYPESAFE_API_KEY`, and `KESTREL_LLM_API_KEY`. The narrator also reads `llm.protocol` (`openai` or `anthropic`), `llm.baseURL`, and `llm.model`. See `examples/.kestrel.yml`.
 
 ### Team checks and static alerts
 
