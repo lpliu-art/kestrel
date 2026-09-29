@@ -1,4 +1,5 @@
 ---
-description: Explain one Kestrel finding. Not available in the MVP; planned for a later version.
+description: Explain one Kestrel finding from a JSON report.
 ---
-`kestrel explain` is not implemented in this version. Re-run `kestrel review --format json --audience agent` and read the finding's `message`, `why`, `probability`, and `fix.hint`.
+Run `kestrel explain $ARGUMENTS` with `--report` pointing at the JSON file from `kestrel review --format json`.
+Read the questions, answers, probabilities, and model version. You explain the finding in context; Kestrel does not write the prose.

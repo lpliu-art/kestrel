@@ -14,6 +14,12 @@ export function lintRules(rules: LoadedRule[]): LintIssue[] {
     if (seen.has(rule.id))
       issues.push({ ruleId: rule.id, message: "duplicate rule id" });
     seen.add(rule.id);
+    if (rule.trigger.kind === "treesitter" && !rule.trigger.query) {
+      issues.push({
+        ruleId: rule.id,
+        message: "treesitter trigger is missing a query",
+      });
+    }
     if (rule.trigger.kind === "regex") {
       if (!rule.trigger.pattern)
         issues.push({
@@ -39,7 +45,7 @@ export function lintRules(rules: LoadedRule[]): LintIssue[] {
         message: "question needs both true and false criteria",
       });
     }
-    if (!isMostlyAscii(rule.question.question)) {
+    if (rule.pluginId !== "checks" && !isMostlyAscii(rule.question.question)) {
       issues.push({
         ruleId: rule.id,
         message: "question must be English (ASCII)",

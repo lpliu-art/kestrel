@@ -99,7 +99,8 @@
                 "enum": [
                   "regex",
                   "always",
-                  "removed"
+                  "removed",
+                  "treesitter"
                 ]
               },
               "on": {
@@ -111,6 +112,10 @@
                 ]
               },
               "pattern": {
+                "type": "string",
+                "minLength": 1
+              },
+              "query": {
                 "type": "string",
                 "minLength": 1
               },

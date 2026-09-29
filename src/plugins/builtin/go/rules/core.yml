@@ -247,3 +247,229 @@ rules:
       negative:
         - code: |
             n, err := rand.Int(rand.Reader, big.NewInt(1 << 20))
+
+  - id: go.security.sql-concat
+    title: { en: "SQL built by concatenation", zh-CN: "通过拼接构造 SQL" }
+    category: security
+    dimension: security
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\.(?:Query|Exec)\(\s*[^)\n]*\+'
+    question:
+      question: "Do the added lines in `hunk` pass SQL built by concatenation to Query or Exec?"
+      focus: "Lines marked with + that call Query or Exec with a plus sign"
+      true: { what: "The SQL text contains a concatenated value" }
+      false: { what: "The value is a placeholder argument" }
+    severity:
+      levels: ["A constant clause", "A value from a request"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} builds SQL by concatenation."
+        why: "The database parses the concatenated value as SQL."
+      zh-CN:
+        body: "第 {{line}} 行通过拼接构造 SQL。"
+        why: "数据库会把拼接进去的值当作 SQL 解析。"
+    fix:
+      hint:
+        en: "Use a placeholder and pass the value as an argument."
+        zh-CN: "使用占位符，把值作为参数传入。"
+    references: ["CWE-89"]
+    examples:
+      positive:
+        - code: |
+            rows, err := db.Query("SELECT * FROM users WHERE id=" + id)
+      negative:
+        - code: |
+            rows, err := db.Query("SELECT * FROM users WHERE id=?", id)
+
+  - id: go.http.client-no-timeout
+    title: { en: "HTTP client with no timeout", zh-CN: "HTTP 客户端没有超时" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'http\.Get\('
+    question:
+      question: "Do the added lines in `hunk` call http.Get?"
+      focus: "Lines marked with + that call http.Get"
+      true: { what: "http.Get is called" }
+      false: { what: "A client with a timeout is used" }
+    severity:
+      levels: ["A one-off command", "A request handler"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} calls http.Get, which has no request timeout."
+        why: "The default client can wait forever."
+      zh-CN:
+        body: "第 {{line}} 行调用了 http.Get，它没有请求超时。"
+        why: "默认客户端可以一直等待。"
+    fix:
+      hint:
+        en: "Use an http.Client with a Timeout."
+        zh-CN: "使用设置了 Timeout 的 http.Client。"
+    examples:
+      positive:
+        - code: |
+            resp, err := http.Get(url)
+      negative:
+        - code: |
+            resp, err := client.Do(req)
+
+  - id: go.security.path-concat
+    title: { en: "Path opened by concatenation", zh-CN: "通过拼接打开路径" }
+    category: security
+    dimension: security
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'os\.Open\(\s*[^)\n]*\+'
+    question:
+      question: "Do the added lines in `hunk` open a path built by concatenation?"
+      focus: "Lines marked with + that pass a concatenated string to os.Open"
+      true: { what: "os.Open receives a concatenated path" }
+      false: { what: "The path is a fixed value" }
+    severity:
+      levels: ["A constant suffix", "A value from a request"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} opens a path built by concatenation."
+        why: "A ../ segment can escape the intended directory."
+      zh-CN:
+        body: "第 {{line}} 行打开了拼接出来的路径。"
+        why: "../ 可以逃出预期目录。"
+    fix:
+      hint:
+        en: "Clean the path and check that it stays under the base directory."
+        zh-CN: "清理路径，并确认它仍在基准目录之下。"
+    references: ["CWE-22"]
+    examples:
+      positive:
+        - code: |
+            f, err := os.Open("/tmp/" + name)
+      negative:
+        - code: |
+            f, err := os.Open(fixedPath)
+
+  - id: go.errors.panic-on-error
+    title: { en: "panic on an error", zh-CN: "遇到错误就 panic" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'panic\('
+    question:
+      question: "Do the added lines in `hunk` call panic?"
+      focus: "Lines marked with + that call panic"
+      true: { what: "panic is called" }
+      false: { what: "The error is returned" }
+    severity:
+      levels: ["A main package during startup", "A library or request path"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls panic."
+        why: "panic crashes the process instead of letting the caller handle the error."
+      zh-CN:
+        body: "第 {{line}} 行调用了 panic。"
+        why: "panic 会让进程崩溃，调用方无法处理这个错误。"
+    fix:
+      hint:
+        en: "Return the error."
+        zh-CN: "把错误返回给调用方。"
+    examples:
+      positive:
+        - code: |
+            if err != nil { panic(err) }
+      negative:
+        - code: |
+            if err != nil { return err }
+
+  - id: go.security.tls-skip-verify
+    title: { en: "TLS verification skipped", zh-CN: "跳过了 TLS 校验" }
+    category: security
+    dimension: security
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'InsecureSkipVerify:\s*true'
+    question:
+      question: "Do the added lines in `hunk` set InsecureSkipVerify to true?"
+      focus: "Lines marked with + that set InsecureSkipVerify: true"
+      true: { what: "Certificate verification is skipped" }
+      false: { what: "Certificate verification stays enabled" }
+    severity:
+      levels: ["A local test", "A client that talks to a remote service"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} sets InsecureSkipVerify to true."
+        why: "Skipping verification allows a network attacker to impersonate the server."
+      zh-CN:
+        body: "第 {{line}} 行把 InsecureSkipVerify 设成了 true。"
+        why: "跳过校验后，网络攻击者可以冒充服务器。"
+    fix:
+      hint:
+        en: "Leave verification on."
+        zh-CN: "保持证书校验开启。"
+    references: ["CWE-295"]
+    examples:
+      positive:
+        - code: |
+            client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+      negative:
+        - code: |
+            client := &http.Client{Timeout: time.Second}
+
+  - id: go.security.template-html
+    title: { en: "template.HTML bypasses escaping", zh-CN: "template.HTML 绕过转义" }
+    category: security
+    dimension: security
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'template\.HTML\('
+    question:
+      question: "Do the added lines in `hunk` wrap a value in template.HTML?"
+      focus: "Lines marked with + that call template.HTML"
+      true: { what: "template.HTML is called" }
+      false: { what: "The value is escaped or left as a string" }
+    severity:
+      levels: ["A constant snippet", "A value from a request"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} marks a string as template.HTML."
+        why: "template.HTML is inserted without escaping."
+      zh-CN:
+        body: "第 {{line}} 行把字符串标成了 template.HTML。"
+        why: "template.HTML 会不经转义直接插入页面。"
+    fix:
+      hint:
+        en: "Leave the value as a string so html/template escapes it."
+        zh-CN: "保持字符串类型，让 html/template 转义它。"
+    references: ["CWE-79"]
+    examples:
+      positive:
+        - code: |
+            return template.HTML(input)
+      negative:
+        - code: |
+            return template.HTMLEscapeString(input)

@@ -5,7 +5,7 @@
 
 [English](README.en.md) · [调研](docs/01-research.md) · [概念](docs/02-concept.md) · [技术方案](docs/03-technical-design.md) · [架构图](docs/04-architecture.md) · [实施计划](docs/05-implementation-plan.md) · [目录结构](docs/06-repo-layout.md)
 
-> 状态：MVP 0.1.0。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。真实评审需要 `TYPESAFE_API_KEY`。没有密钥时请使用 `--provider mock`（结果不是 AI 判断）。
+> 状态：0.2.0（P1）。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。真实评审需要 `TYPESAFE_API_KEY`。没有密钥时请使用 `--provider mock`（结果不是 AI 判断）。
 
 ## 为什么是 Kestrel
 
@@ -61,22 +61,64 @@ kestrel review --format sarif --out kestrel.sarif
 kestrel review --format markdown --out kestrel.md
 kestrel review --preview --show-payload
 kestrel review --gate --fail-on high
+kestrel review --sarif-in 'reports/*.sarif'
+kestrel explain f_2078a579 --report kestrel.json
+kestrel doctor
+kestrel github post --report kestrel.json --pr 1 --sticky --event auto
 kestrel rules test
 kestrel rules lint
+kestrel rules show team.api.validate-body --config .kestrel.yml
 ```
 
-退出码：`0` 通过 · `1` 门禁失败 · `2` 用法或配置错误 · `3` Provider / 鉴权错误 · `4` 部分完成且带了 `--strict`。
+退出码：`0` 通过 · `1` 门禁失败 · `2` 用法或配置错误 · `3` Provider / 鉴权错误 · `4` 部分完成且带了 `--strict`（`github post` 在 API 失败且带 `--strict` 时也是 4）。
 
 配置文件是 `.kestrel.yml`，环境变量是 `KESTREL_PROVIDER`、`KESTREL_MODEL`、`KESTREL_PROFILE`、`KESTREL_LANG` 和 `TYPESAFE_API_KEY`。示例见 `examples/.kestrel.yml`。
 
+### 团队检查与静态告警
+
+`.kestrel.yml` 里的 `checks` 会编译成 Noul。`expect: true` 对应问题 “Does `hunk` violate this team rule: …?”，概率不取反。`rules show <id>` 能看到编译后的问题；如果提供了正反例，`rules test` 会跑它们。
+
+```yaml
+checks:
+  - id: team.api.validate-body
+    paths: ["src/api/**"]
+    ask: "Request handlers must validate the body before use"
+    expect: true
+    severity: high
+```
+
+`--sarif-in <glob>`（或 `static.sarif`）读入 ESLint、Ruff、golangci-lint、Semgrep 等工具的 SARIF。每条落在 diff 上的告警会问“是否真实”和“是否值得在这个 PR 里修”，`real × matters` 达到报告阈值才保留。统计写在报告的 `static` 字段里。`--untrusted` 不会执行静态工具，只读取已经生成的 SARIF。
+
+### GitHub Action
+
+仓库根目录的 `action.yml` 是 composite action。PR 可控的值都从 `env:` 传入。没有 `TYPESAFE_API_KEY` 且 `allow_mock` 不是 `true` 时，job 打出 warning 并跳过（退出码 0）。`GITHUB_TOKEN` 不能提交 `REQUEST_CHANGES` 时，`github post --event auto` 会改发 `COMMENT`。
+
+```yaml
+# examples/github-actions/kestrel.yml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0
+- uses: lpliu-art/kestrel@v0
+  with:
+    typesafe_api_key: ${{ secrets.TYPESAFE_API_KEY }}
+    language: zh-CN
+    fail_on: high
+    sarif: "true"
+```
+
+本仓库的 dogfood 工作流用 `version: local` 和 `allow_mock: true`，不依赖已发布的 npm 包。
+
 ## 这个版本有什么
 
-- 内置规则：core、TypeScript/JavaScript（含 2 条 React 与 2 条 Vue 正则规则）、Python、Java、Go。
+- 内置规则：每个 MVP 插件（core、TypeScript/JavaScript、Python、Java、Go）至少 12 条，含正反例。TypeScript 插件另有 React 与 Vue 规则。
+- tree-sitter（`web-tree-sitter` 0.25.10）提供封闭函数/类和 `treesitter` 触发器。语法 WASM 加载失败时自动退回启发式上下文和正则触发器。相邻小 hunk 只在同一个封闭函数内合并。
 - Provider：`typesafe`（`@typesafe-ai/sdk` 0.6.0，模型 `jev-1.13.0`）、`http`、`mock`、`replay`。测试和 CI 不需要密钥，也不访问网络。
-- 输出：终端、JSON、SARIF 2.1.0、Markdown。
-- Agent skill：`skills/kestrel/SKILL.md`，以及 Claude Code 命令 `plugins/kestrel/claude-code/commands/review.md`。
+- 输出：终端、JSON、SARIF 2.1.0、Markdown。JSON 报告带有 `trace`，`explain` 用来显示问题、答案和概率。
+- `doctor` 检查 Git、Node、API key、模型可达性（有 key 时 `GET /v1/models`）和缓存目录。
+- GitHub Action、PR 评论（指纹去重、粘性汇总）和 SARIF 过滤。
+- Agent skill：`skills/kestrel/SKILL.md`，以及 Claude Code 命令 `review` / `explain`。
 
-GitHub Action、PR 行内评论、`explain`、tree-sitter、SARIF 输入过滤、自然语言 `checks` 和 LLM 叙述器留在后续版本。详见 [实施计划](docs/05-implementation-plan.md)。
+LLM 叙述器仍在后续版本。真实 Jev cassette 需要 `TYPESAFE_API_KEY`，当前 CI 只用 mock 和 replay。详见 [实施计划](docs/05-implementation-plan.md)。
 
 ## 许可证
 

@@ -21,7 +21,11 @@ export function buildUnits(
   languageId: string,
   pluginId: string,
   limits: { maxAddedLinesPerUnit: number },
-  meta?: { frameworks?: string[]; testsChanged?: string[] },
+  meta?: {
+    frameworks?: string[];
+    testsChanged?: string[];
+    enclosingAt?: (line: number) => string | undefined;
+  },
 ): ReviewUnit[] {
   const max = Math.min(254, limits.maxAddedLinesPerUnit);
   const drafts: Array<{ lines: DiffLine[]; header?: string }> = [];
@@ -29,7 +33,7 @@ export function buildUnits(
     for (const lines of splitHunk(hunk, max))
       drafts.push({ lines, header: hunk.header });
   }
-  const merged = mergeDrafts(drafts, max);
+  const merged = mergeDrafts(drafts, max, meta?.enclosingAt);
   return merged.map((draft, index) => {
     const span = lineSpan(draft.lines);
     return {
@@ -74,6 +78,7 @@ function splitHunk(hunk: Hunk, max: number): DiffLine[][] {
 function mergeDrafts(
   drafts: Array<{ lines: DiffLine[]; header?: string }>,
   max: number,
+  enclosingAt?: (line: number) => string | undefined,
 ): Array<{ lines: DiffLine[]; header?: string }> {
   const out: Array<{ lines: DiffLine[]; header?: string }> = [];
   for (const draft of drafts) {
@@ -86,13 +91,32 @@ function mergeDrafts(
     const prevSpan = lineSpan(prev.lines);
     const gap = span.start - prevSpan.end;
     const combined = prevSpan.added.length + span.added.length;
-    if (gap >= 0 && gap <= 6 && combined <= max && combined > 0) {
+    if (
+      gap >= 0 &&
+      gap <= 6 &&
+      combined <= max &&
+      combined > 0 &&
+      sameEnclosing(prevSpan.added[0], span.added[0], enclosingAt)
+    ) {
       prev.lines.push(...draft.lines);
       continue;
     }
     out.push({ lines: [...draft.lines], header: draft.header });
   }
   return out;
+}
+
+function sameEnclosing(
+  left: number | undefined,
+  right: number | undefined,
+  enclosingAt?: (line: number) => string | undefined,
+): boolean {
+  if (!enclosingAt || left === undefined || right === undefined) return true;
+  const a = enclosingAt(left);
+  const b = enclosingAt(right);
+  if (a && b) return a === b;
+  if (a || b) return false;
+  return true;
 }
 
 function lineSpan(lines: DiffLine[]): {

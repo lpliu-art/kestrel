@@ -9,3 +9,21 @@ jev:
 gate:
   failOn: high
   minProbability: 0.8
+
+checks:
+  - id: team.api.validate-body
+    paths: ["src/api/**"]
+    ask: "Request handlers must validate the body before use"
+    expect: true
+    severity: high
+    examples:
+      positive:
+        - code: |
+            db.insert(req.body)
+      negative:
+        - code: |
+            const body = schema.parse(req.body)
+
+static:
+  sarif: []
+  filterMode: added

@@ -1,0 +1,32 @@
+name: Kestrel
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  kestrel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build
+        run: npm ci && npm run build
+      # actionlint 1.7.12 rejects GitHub's `$/` form; `./` is the root composite action.
+      - uses: ./ # zizmor: ignore[self-repository]
+        with:
+          version: local
+          allow_mock: "true"
+          language: en
+          post: summary
+          sarif: "false"

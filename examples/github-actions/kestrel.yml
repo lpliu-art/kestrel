@@ -1,0 +1,24 @@
+name: Kestrel
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  kestrel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: lpliu-art/kestrel@v0
+        with:
+          typesafe_api_key: ${{ secrets.TYPESAFE_API_KEY }}
+          language: zh-CN
+          fail_on: high
+          sarif: "true"

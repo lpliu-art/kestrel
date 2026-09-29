@@ -129,6 +129,33 @@ export const userConfigSchema = z
             expect: z.boolean().optional(),
             severity: severity.optional(),
             message: z.record(z.string(), z.string()).optional(),
+            examples: z
+              .object({
+                positive: z
+                  .array(
+                    z
+                      .object({
+                        code: z.string(),
+                        path: z.string().optional(),
+                        language: z.string().optional(),
+                      })
+                      .strict(),
+                  )
+                  .optional(),
+                negative: z
+                  .array(
+                    z
+                      .object({
+                        code: z.string(),
+                        path: z.string().optional(),
+                        language: z.string().optional(),
+                      })
+                      .strict(),
+                  )
+                  .optional(),
+              })
+              .strict()
+              .optional(),
           })
           .strict(),
       )
@@ -231,6 +258,10 @@ export interface ResolvedConfig {
     overrides: Record<string, RuleOverride>;
   };
   checks: NonNullable<UserConfig["checks"]>;
+  static: {
+    sarif: string[];
+    filterMode: "added" | "diff_context";
+  };
   gate: {
     failOn: "low" | "medium" | "high" | "critical";
     minProbability: number;

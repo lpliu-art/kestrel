@@ -1,0 +1,36 @@
+pack: starter
+version: 1.0.0
+rules:
+  - id: starter.correctness.todo-now
+    title: { en: "TODO without an owner", zh-CN: "没有负责人的 TODO" }
+    category: maintainability
+    dimension: maintainability
+    applies: { languages: [typescript] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'TODO'
+    question:
+      question: "Do the added lines in `hunk` add a TODO comment?"
+      focus: "Lines marked with + that contain TODO"
+      true: { what: "A TODO comment was added" }
+      false: { what: "No TODO comment was added" }
+    severity:
+      levels: ["A note in a draft", "A TODO on a request path"]
+      map: [low, medium]
+      default: low
+    message:
+      en:
+        body: "Line {{line}} adds a TODO."
+        why: "A TODO with no owner is easy to leave in the tree."
+      zh-CN:
+        body: "第 {{line}} 行新增了 TODO。"
+        why: "没有负责人的 TODO 很容易留在仓库里。"
+    examples:
+      positive:
+        - code: |
+            // TODO handle the empty case
+            return items[0];
+      negative:
+        - code: |
+            return items[0];

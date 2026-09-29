@@ -1,0 +1,119 @@
+name: Kestrel Review
+description: Fast, calibrated code review with TypeSafe Jev
+inputs:
+  typesafe_api_key:
+    required: false
+    description: TypeSafe API key. Omit to skip unless allow_mock is true.
+  version:
+    default: latest
+    description: npm version of kestrel-review, or "local" to run this checkout.
+  model:
+    default: jev-1.13.0
+  profile:
+    default: balanced
+  language:
+    default: en
+  fail_on:
+    default: ""
+    description: Enable the gate with low, medium, high, or critical.
+  post:
+    default: review
+    description: review, summary, or none.
+  sarif:
+    default: "false"
+    description: Upload kestrel.sarif to code scanning.
+  untrusted:
+    default: "true"
+  allow_mock:
+    default: "false"
+    description: Run the mock provider when no API key is available.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: 22
+    - name: Review
+      id: review
+      shell: bash
+      env:
+        TYPESAFE_API_KEY: ${{ inputs.typesafe_api_key }}
+        BASE_REF: ${{ github.base_ref }}
+        IN_VERSION: ${{ inputs.version }}
+        IN_MODEL: ${{ inputs.model }}
+        IN_PROFILE: ${{ inputs.profile }}
+        IN_LANG: ${{ inputs.language }}
+        IN_FAIL_ON: ${{ inputs.fail_on }}
+        IN_UNTRUSTED: ${{ inputs.untrusted }}
+        IN_ALLOW_MOCK: ${{ inputs.allow_mock }}
+      run: |
+        set -euo pipefail
+        if [ -z "${TYPESAFE_API_KEY}" ]; then
+          if [ "${IN_ALLOW_MOCK}" = "true" ]; then
+            PROVIDER=mock
+          else
+            echo "::warning::No TYPESAFE_API_KEY; skipping Kestrel"
+            exit 0
+          fi
+        else
+          PROVIDER=typesafe
+        fi
+        if [ "${IN_VERSION}" = "local" ]; then
+          if [ ! -f dist/cli/index.js ]; then
+            npm ci
+            npm run build
+          fi
+          KESTREL=(node bin/kestrel.mjs)
+        else
+          KESTREL=(npx -y "kestrel-review@${IN_VERSION}")
+        fi
+        ARGS=(review --provider "${PROVIDER}" --model "${IN_MODEL}" --profile "${IN_PROFILE}" --lang "${IN_LANG}" --format json --out-json kestrel.json --format sarif --out-sarif kestrel.sarif --format markdown --out-md kestrel.md --audience agent)
+        if [ -n "${BASE_REF}" ]; then
+          ARGS+=(--from "origin/${BASE_REF}")
+        fi
+        if [ "${IN_UNTRUSTED}" = "true" ]; then
+          ARGS+=(--untrusted)
+        fi
+        if [ -n "${IN_FAIL_ON}" ]; then
+          ARGS+=(--gate --fail-on "${IN_FAIL_ON}")
+        fi
+        set +e
+        "${KESTREL[@]}" "${ARGS[@]}"
+        code=$?
+        set -e
+        echo "exit_code=${code}" >> "${GITHUB_OUTPUT}"
+        if [ -f kestrel.md ]; then
+          cat kestrel.md >> "${GITHUB_STEP_SUMMARY}"
+        fi
+        if [ "${code}" -ge 2 ]; then
+          exit "${code}"
+        fi
+    - name: Post
+      if: inputs.post != 'none' && steps.review.outputs.exit_code != ''
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        IN_POST: ${{ inputs.post }}
+        IN_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        if [ "${IN_VERSION}" = "local" ]; then
+          KESTREL=(node bin/kestrel.mjs)
+        else
+          KESTREL=(npx -y "kestrel-review@${IN_VERSION}")
+        fi
+        ARGS=(github post --report kestrel.json --sticky)
+        if [ "${IN_POST}" = "summary" ]; then
+          ARGS+=(--summary-only)
+        fi
+        "${KESTREL[@]}" "${ARGS[@]}"
+    - name: Upload SARIF
+      if: inputs.sarif == 'true' && steps.review.outputs.exit_code != ''
+      uses: github/codeql-action/upload-sarif@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+      with:
+        sarif_file: kestrel.sarif
+    - name: Gate
+      if: steps.review.outputs.exit_code == '1'
+      shell: bash
+      run: exit 1

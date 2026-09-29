@@ -1,0 +1,33 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "ESLint",
+          "rules": [
+            {
+              "id": "no-eval",
+              "helpUri": "https://eslint.org/docs/latest/rules/no-eval"
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "no-eval",
+          "level": "error",
+          "message": { "text": "eval can be harmful." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/app.ts" },
+                "region": { "startLine": 2 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

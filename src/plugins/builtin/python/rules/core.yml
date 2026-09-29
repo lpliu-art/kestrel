@@ -282,3 +282,195 @@ rules:
         - code: |
             async def handler():
                 await asyncio.sleep(1)
+
+  - id: py.resource.unclosed-file
+    title: { en: "File opened without a context manager", zh-CN: "打开文件时没有使用上下文管理器" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '(?<!with )open\('
+    question:
+      question: "Do the added lines in `hunk` call open without a with statement?"
+      focus: "Lines marked with + that call open and are not a with statement"
+      true: { what: "open is called outside a with statement" }
+      false: { what: "The file is opened with a context manager" }
+    severity:
+      levels: ["A short script", "A long-running process that can leak descriptors"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} opens a file without closing it."
+        why: "A file left open can leak descriptors."
+      zh-CN:
+        body: "第 {{line}} 行打开文件后没有关闭。"
+        why: "未关闭的文件会泄漏描述符。"
+    fix:
+      hint:
+        en: "Open the file with a with statement."
+        zh-CN: "用 with 打开文件。"
+    examples:
+      positive:
+        - code: |
+            data = open(path).read()
+      negative:
+        - code: |
+            with open(path) as handle:
+                data = handle.read()
+
+  - id: py.security.yaml-unsafe-load
+    title: { en: "Unsafe yaml.load", zh-CN: "不安全的 yaml.load" }
+    category: security
+    dimension: security
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'yaml\.load\('
+    question:
+      question: "Do the added lines in `hunk` call yaml.load?"
+      focus: "Lines marked with + that call yaml.load"
+      true: { what: "yaml.load is called" }
+      false: { what: "yaml.safe_load is used" }
+    severity:
+      levels: ["Data from a trusted file", "Data from a request"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls yaml.load, which can construct arbitrary objects."
+        why: "yaml.load follows tags in the document and can run code."
+      zh-CN:
+        body: "第 {{line}} 行调用了 yaml.load，它可以构造任意对象。"
+        why: "yaml.load 会处理文档里的标签，可能执行代码。"
+    fix:
+      hint:
+        en: "Use yaml.safe_load."
+        zh-CN: "改用 yaml.safe_load。"
+    references: ["CWE-502"]
+    examples:
+      positive:
+        - code: |
+            value = yaml.load(data)
+      negative:
+        - code: |
+            value = yaml.safe_load(data)
+
+  - id: py.security.assert-check
+    title: { en: "assert used as a check", zh-CN: "用 assert 做检查" }
+    category: security
+    dimension: security
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '^\s*assert\s+'
+    question:
+      question: "Do the added lines in `hunk` use assert to enforce a condition?"
+      focus: "Lines marked with + that start with assert"
+      true: { what: "An assert enforces a condition" }
+      false: { what: "The condition is an if statement that raises" }
+    severity:
+      levels: ["A test", "A check that Python -O would remove"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} uses assert for a check that disappears under python -O."
+        why: "Optimized Python removes assert statements."
+      zh-CN:
+        body: "第 {{line}} 行用 assert 做检查，python -O 会删掉它。"
+        why: "优化模式下 assert 不会执行。"
+    fix:
+      hint:
+        en: "Raise an exception instead of using assert."
+        zh-CN: "改成抛出异常，不要用 assert。"
+    examples:
+      positive:
+        - code: |
+            def handle(user):
+                assert user.is_admin
+      negative:
+        - code: |
+            def handle(user):
+                if not user.is_admin:
+                    raise PermissionError()
+
+  - id: py.security.mktemp
+    title: { en: "Unsafe tempfile.mktemp", zh-CN: "不安全的 tempfile.mktemp" }
+    category: security
+    dimension: security
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'tempfile\.mktemp\('
+    question:
+      question: "Do the added lines in `hunk` call tempfile.mktemp?"
+      focus: "Lines marked with + that call tempfile.mktemp"
+      true: { what: "tempfile.mktemp is called" }
+      false: { what: "tempfile.mkstemp or TemporaryFile is used" }
+    severity:
+      levels: ["A throwaway path", "A path that is created later and can be raced"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls tempfile.mktemp."
+        why: "mktemp returns a name without creating the file, so another process can take it."
+      zh-CN:
+        body: "第 {{line}} 行调用了 tempfile.mktemp。"
+        why: "mktemp 只返回名字而不创建文件，其他进程可以抢占这个路径。"
+    fix:
+      hint:
+        en: "Use tempfile.mkstemp or TemporaryFile."
+        zh-CN: "改用 tempfile.mkstemp 或 TemporaryFile。"
+    references: ["CWE-377"]
+    examples:
+      positive:
+        - code: |
+            path = tempfile.mktemp()
+      negative:
+        - code: |
+            path = tempfile.mkstemp()
+
+  - id: py.security.pickle-load
+    title: { en: "pickle.loads of external data", zh-CN: "对外部数据执行 pickle.loads" }
+    category: security
+    dimension: security
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'pickle\.loads?\('
+    question:
+      question: "Do the added lines in `hunk` unpickle data?"
+      focus: "Lines marked with + that call pickle.load or pickle.loads"
+      true: { what: "pickle.load or pickle.loads is called" }
+      false: { what: "A safe parser such as json.loads is used" }
+    severity:
+      levels: ["Data produced by this process", "Data from a request or file"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} unpickles data, which can execute code."
+        why: "Pickle can invoke constructors embedded in the payload."
+      zh-CN:
+        body: "第 {{line}} 行反序列化了 pickle，这可以执行代码。"
+        why: "pickle 会调用载荷里嵌入的构造函数。"
+    fix:
+      hint:
+        en: "Use a data-only format such as JSON."
+        zh-CN: "改用 JSON 这类只表达数据的格式。"
+    references: ["CWE-502"]
+    examples:
+      positive:
+        - code: |
+            value = pickle.loads(payload)
+      negative:
+        - code: |
+            value = json.loads(payload)

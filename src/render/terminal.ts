@@ -75,6 +75,13 @@ export function renderTerminal(
       );
     }
   }
+  if (report.static) {
+    lines.push(
+      zh
+        ? `静态告警 ${report.static.imported} 条，diff 内 ${report.static.onDiff} 条，保留 ${report.static.kept}，丢弃 ${report.static.dropped}`
+        : `Static alerts imported ${report.static.imported}, on diff ${report.static.onDiff}, kept ${report.static.kept}, dropped ${report.static.dropped}`,
+    );
+  }
   for (const warning of report.warnings) lines.push(pc.yellow(`! ${warning}`));
   lines.push(
     `Verdict: ${report.verdict.decision.toUpperCase()} — ${report.verdict.reasons.join(" ")}`,

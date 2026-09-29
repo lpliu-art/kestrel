@@ -96,6 +96,7 @@ export function defaultConfig(): ResolvedConfig {
     rulePacks: [".kestrel/rules/**/*.yml"],
     rules: { disable: [], enable: [], overrides: {} },
     checks: [],
+    static: { sarif: [], filterMode: "added" },
     gate: { failOn: "high", minProbability: 0.8 },
     privacy: {
       redactSecrets: true,
@@ -146,7 +147,16 @@ rules:
   enable: []
   overrides: {}
 
-checks: []                    # natural-language checks ship in a later version
+checks: []                    # compiled to Noul questions; see README
+# - id: team.api.validate-body
+#   paths: ["src/api/**"]
+#   ask: "Request handlers must validate the body before use"
+#   expect: true
+#   severity: high
+
+static:
+  sarif: []                   # globs of ESLint/Ruff/Semgrep/golangci-lint SARIF
+  filterMode: added           # added | diff_context
 
 gate:
   failOn: high                # low | medium | high | critical

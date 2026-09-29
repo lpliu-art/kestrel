@@ -67,6 +67,12 @@ program
   .option("--strict", "Exit 4 when the run is partial")
   .option("--show-uncertain <mode>", "hidden | collapsed | expanded")
   .option("--sarif-include-uncertain")
+  .option(
+    "--sarif-in <glob>",
+    "Read static-analyzer SARIF and filter it (repeatable)",
+    collectString,
+    [] as string[],
+  )
   .option("--log-payload", "Store raw state in the session log")
   .option("--config <path>")
   .action(async (paths: string[], opts: Record<string, unknown>) => {
@@ -115,6 +121,7 @@ program
       strict: Boolean(opts.strict),
       showUncertain: opts.showUncertain as ReviewOptions["showUncertain"],
       sarifIncludeUncertain: Boolean(opts.sarifIncludeUncertain),
+      sarifIn: (opts.sarifIn as string[] | undefined) ?? [],
       logPayload: Boolean(opts.logPayload),
       configPath: opts.config as string | undefined,
       tty: Boolean(process.stdout.isTTY),
@@ -217,20 +224,58 @@ rules
 rules
   .command("test")
   .option("--live", "Call the real Jev API (requires TYPESAFE_API_KEY)")
+  .option("--record <dir>", "Record live responses into a cassette directory")
+  .option("--replay <dir>", "Replay cassettes instead of calling Jev")
+  .option("--pack <glob>", "Extra rule pack glob")
   .option("--config <path>")
   .option("--lang <lang>", "zh-CN | en")
   .action(
     async (opts: {
       live?: boolean;
+      record?: string;
+      replay?: string;
+      pack?: string;
       config?: string;
       lang?: "zh-CN" | "en";
     }) => {
       if (opts.live && !process.env.TYPESAFE_API_KEY)
         fail(3, missingKeyMessage(opts.lang ?? "zh-CN"));
-      const report = await testRules(
-        await builtinRules(opts.config),
-        opts.lang ?? "en",
-      );
+      const loaded = loadConfig({
+        cwd: process.cwd(),
+        configPath: opts.config,
+      });
+      if (opts.pack) loaded.rulePacks = [opts.pack];
+      else loaded.rulePacks = [];
+      const registry = await loadPlugins(loaded, process.cwd(), true);
+      const rules = await loadRules(registry.plugins, loaded, process.cwd());
+      let provider: import("../jev/types.ts").JevProvider | undefined;
+      if (opts.live || opts.replay) {
+        const { buildProvider } = await import("../jev/factory.ts");
+        if (opts.replay) loaded.jev.provider = "replay";
+        if (opts.live) loaded.jev.provider = "typesafe";
+        const built = await buildProvider({
+          config: loaded,
+          rules,
+          cwd: process.cwd(),
+          env: process.env,
+          providerExplicit: true,
+          tty: false,
+          ci: true,
+          replayDir: opts.replay,
+          replayFallback: !opts.live,
+          recordDir: opts.record,
+          warnings: [],
+        });
+        provider = built.provider;
+      }
+      const report = await testRules(rules, opts.lang ?? "en", { provider });
+      if (opts.live || opts.replay) {
+        for (const sample of report.distribution) {
+          process.stdout.write(
+            `${sample.ruleId} ${sample.kind}[${sample.index}] p=${sample.probability.toFixed(2)} band=${sample.band}\n`,
+          );
+        }
+      }
       process.stdout.write(
         `rules test: ${report.passed} passed, ${report.failed.length} failed\n`,
       );
@@ -319,6 +364,108 @@ cache.command("stats").action(async () => {
   );
   process.stdout.write(stableStringify(await store.stats()));
 });
+program
+  .command("explain")
+  .description(
+    "Show the questions, answers, and probabilities behind a finding",
+  )
+  .argument("<findingId>")
+  .requiredOption("--report <file>", "JSON report from kestrel review")
+  .action(async (findingId: string, opts: { report: string }) => {
+    const { readFile } = await import("node:fs/promises");
+    const { parseReport } = await import("../report/model.ts");
+    const { explainFinding } = await import("../explain/run.ts");
+    let report: ReturnType<typeof parseReport>;
+    try {
+      report = parseReport(JSON.parse(await readFile(opts.report, "utf8")));
+    } catch (error) {
+      fail(
+        2,
+        `Cannot read report ${opts.report}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    const text = explainFinding(report, findingId);
+    if (!text) fail(2, `Finding ${findingId} is not in ${opts.report}`);
+    process.stdout.write(text);
+  });
+
+program
+  .command("doctor")
+  .description(
+    "Check git, Node, the API key, model reachability, and the cache",
+  )
+  .option("--config <path>")
+  .action(async (opts: { config?: string }) => {
+    const { runDoctor } = await import("../doctor/run.ts");
+    const loaded = loadConfig({ cwd: process.cwd(), configPath: opts.config });
+    const result = await runDoctor({
+      cwd: process.cwd(),
+      config: loaded,
+      env: process.env,
+    });
+    process.stdout.write(result.text);
+    process.exitCode = result.exitCode;
+  });
+
+const github = program
+  .command("github")
+  .description("GitHub pull request integration");
+github
+  .command("post")
+  .description("Post review comments for a JSON report")
+  .requiredOption("--report <file>", "JSON report from kestrel review")
+  .option("--pr <n>", "Pull request number", parseIntArg)
+  .option("--sticky", "Create or update the summary comment")
+  .option("--summary-only", "Do not post inline comments")
+  .option("--event <event>", "auto | COMMENT | REQUEST_CHANGES", "auto")
+  .option("--strict", "Exit 4 when the GitHub API request fails")
+  .action(async (opts: Record<string, unknown>) => {
+    const { readFile } = await import("node:fs/promises");
+    const { parseReport } = await import("../report/model.ts");
+    const { renderMarkdown } = await import("../render/markdown.ts");
+    const { postGitHubReview, pullRequestNumber } = await import(
+      "../github/post.ts"
+    );
+    const event = String(opts.event ?? "auto");
+    if (!["auto", "COMMENT", "REQUEST_CHANGES"].includes(event))
+      fail(2, `Invalid --event ${event}`);
+    const token = process.env.GITHUB_TOKEN;
+    if (!token) fail(2, "GITHUB_TOKEN is required to post a review.");
+    const repository = process.env.GITHUB_REPOSITORY;
+    if (!repository) fail(2, "GITHUB_REPOSITORY is required (owner/name).");
+    let report: ReturnType<typeof parseReport>;
+    try {
+      report = parseReport(
+        JSON.parse(await readFile(String(opts.report), "utf8")),
+      );
+    } catch (error) {
+      fail(
+        2,
+        `Cannot read report: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    const pr = await pullRequestNumber(
+      opts.pr as number | undefined,
+      process.env.GITHUB_EVENT_PATH,
+    );
+    const result = await postGitHubReview({
+      report,
+      summaryBody: renderMarkdown(report, "collapsed"),
+      repository,
+      pr,
+      token,
+      event: event as "auto" | "COMMENT" | "REQUEST_CHANGES",
+      summaryOnly: Boolean(opts.summaryOnly),
+      sticky: Boolean(opts.sticky),
+      strict: Boolean(opts.strict),
+    });
+    for (const warning of result.warnings) process.stderr.write(`${warning}\n`);
+    process.stdout.write(
+      `github post: event=${result.event} comments=${result.postedComments} duplicates=${result.skippedDuplicates}${result.downgraded ? " downgraded=COMMENT" : ""}\n`,
+    );
+    process.exitCode = result.exitCode;
+  });
+
 cache.command("clear").action(async () => {
   const loaded = loadConfig({ cwd: process.cwd() });
   const store = new FileCache(
@@ -340,6 +487,10 @@ program.parseAsync(process.argv).catch((error: unknown) => {
   );
   process.exitCode = 2;
 });
+
+function collectString(value: string, previous: string[]): string[] {
+  return previous.concat(value);
+}
 
 function collectFormat(value: string, previous: string[]): string[] {
   return previous.concat(

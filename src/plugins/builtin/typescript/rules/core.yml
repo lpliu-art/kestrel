@@ -319,3 +319,45 @@ rules:
       negative:
         - code: |
             const value = input as string;
+
+  - id: ts.correctness.debugger-statement
+    title: { en: "Debugger statement", zh-CN: "debugger 语句" }
+    category: correctness
+    dimension: correctness
+    applies: { languages: [typescript, tsx, javascript] }
+    trigger:
+      kind: treesitter
+      query: "(debugger_statement) @hit"
+      pattern: '\bdebugger\b'
+    locate: trigger
+    question:
+      question: "Do the added lines in `hunk` contain a debugger statement?"
+      focus: "Lines marked with + that are debugger statements"
+      true: { what: "A debugger statement was added" }
+      false: { what: "No debugger statement was added" }
+    severity:
+      levels: ["A local script", "A statement that would pause production code"]
+      map: [low, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} adds a debugger statement."
+        why: "A debugger statement stops execution when DevTools are attached."
+      zh-CN:
+        body: "第 {{line}} 行新增了 debugger 语句。"
+        why: "打开开发者工具时，debugger 会暂停执行。"
+    fix:
+      hint:
+        en: "Remove the debugger statement before merging."
+        zh-CN: "合并前删掉 debugger。"
+    examples:
+      positive:
+        - code: |
+            function run() {
+              debugger;
+            }
+      negative:
+        - code: |
+            function run() {
+              return 1;
+            }

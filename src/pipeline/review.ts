@@ -35,6 +35,16 @@ import { needsPass2 } from "../rules/compile.ts";
 import { loadRules } from "../rules/load.ts";
 import type { LoadedRule } from "../rules/schema.ts";
 import { gateFile, isTestPath } from "../select/gates.ts";
+import {
+  alertsOnDiff,
+  judgeStaticAlerts,
+  loadSarifAlerts,
+} from "../static/sarif-filter.ts";
+import { enclosingIdentity } from "../treesitter/context.ts";
+import {
+  drainGrammarWarnings,
+  ensureTreesitter,
+} from "../treesitter/runtime.ts";
 import { buildUnits, type ReviewUnit } from "../units/build.ts";
 import type { JsonValue } from "../util/json.ts";
 import { round6 } from "../util/json.ts";
@@ -75,6 +85,7 @@ export interface ReviewOptions {
   strict?: boolean;
   showUncertain?: ResolvedConfig["output"]["showUncertain"];
   sarifIncludeUncertain?: boolean;
+  sarifIn?: string[];
   logPayload?: boolean;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
@@ -113,6 +124,9 @@ export async function runReview(
     config.output.formats = options.formats;
   if (options.showUncertain)
     config.output.showUncertain = options.showUncertain;
+  if (options.sarifIn && options.sarifIn.length > 0)
+    config.static.sarif = [...config.static.sarif, ...options.sarifIn];
+  await ensureTreesitter();
   const started = (options.now ?? (() => new Date()))();
   const startedMs = started.getTime();
   const registry = await loadPlugins(config, cwd, options.untrusted ?? false);
@@ -130,7 +144,12 @@ export async function runReview(
   });
   const facts = await detectFacts(registry, cwd);
   const planned = await planFiles(diff, cwd, config, registry, rules, facts);
-  const warnings = [...config.warnings];
+  const warnings = [...config.warnings, ...drainGrammarWarnings()];
+  if (options.untrusted && config.static.sarif.length > 0) {
+    warnings.push(
+      "Untrusted mode: static tools are not executed; reading SARIF input only.",
+    );
+  }
   const previewPayloads = options.showPayload
     ? payloadsFor(planned.units, config)
     : undefined;
@@ -257,6 +276,26 @@ export async function runReview(
     );
   }
   const findings = dedupeFindings(judgements.flatMap((item) => item.findings));
+  let staticSummary: Report["static"];
+  if (config.static.sarif.length > 0) {
+    const imported = await loadSarifAlerts(config.static.sarif, cwd);
+    const onDiff = alertsOnDiff(imported, diff.files, config.static.filterMode);
+    const judged = await judgeStaticAlerts({
+      alerts: onDiff,
+      units: planned.units.map((item) => item.unit),
+      provider: built.provider,
+      model: config.jev.model,
+      config,
+      language: config.output.language,
+    });
+    findings.push(...judged.findings);
+    staticSummary = {
+      ...judged.summary,
+      imported: imported.length,
+      onDiff: onDiff.length,
+    };
+    if (judged.partial) partial = true;
+  }
   const risks: UnitRisk[] = planned.units.map((item, index) => ({
     path: item.unit.path,
     unitRisk: unitRiskFromDimensions(judgements[index]?.dimensions ?? {}),
@@ -280,6 +319,7 @@ export async function runReview(
     providerName: built.provider.name,
     payloads: previewPayloads,
     risks,
+    staticSummary,
   });
   return finish(report, options, config);
 }
@@ -407,6 +447,7 @@ async function planFiles(
     const plugin = registry.pluginForLanguage(languageId);
     const sourceLines =
       source === undefined ? sourceFromHunks(file) : splitSourceLines(source);
+    const sourceText = sourceLines.join("\n");
     const built = buildUnits(
       file,
       sourceLines,
@@ -416,6 +457,7 @@ async function planFiles(
       {
         frameworks: facts,
         testsChanged: relatedTests(file.path, testPaths),
+        enclosingAt: (line) => enclosingIdentity(sourceText, languageId, line),
       },
     );
     files.push({ path: file.path, language: languageId });
@@ -434,6 +476,7 @@ async function planFiles(
               endLine: unit.endLine,
               addedLines: unit.addedLineNumbers,
             },
+            maxEnclosingLines: config.privacy.maxEnclosingLines,
           })
         : undefined;
       const state = buildReviewState({
@@ -566,6 +609,7 @@ function assemble(input: {
   payloads?: NonNullable<Report["preview"]>["payloads"];
   estimatedTokens?: number;
   risks?: UnitRisk[];
+  staticSummary?: Report["static"];
 }): Report {
   const findings = dedupeFindings(input.findings);
   const reportPaths = new Set(
@@ -647,6 +691,7 @@ function assemble(input: {
         })),
     },
     warnings: [...new Set(input.warnings)],
+    ...(input.staticSummary ? { static: input.staticSummary } : {}),
   };
   if (input.payloads) {
     report.preview = {
