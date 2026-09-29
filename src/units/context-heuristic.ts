@@ -15,6 +15,9 @@ const SIGNATURES: Record<string, RegExp> = {
   python: /^\s*(async\s+)?def\s+\w+|^\s*class\s+\w+/,
   java: /^\s*(public|private|protected|static|final|\s)*[\w<>[\]]+\s+\w+\s*\([^;]*\)\s*\{?\s*$|^\s*(public|private|protected)?\s*(class|interface|enum)\b/,
   go: /^\s*func\s+(\([^)]+\)\s*)?\w+/,
+  rust: /^\s*(pub\s+)?(async\s+)?fn\s+\w+|^\s*(pub\s+)?(struct|enum|impl)\b/,
+  csharp:
+    /^\s*(public|private|protected|internal|static|async|\s)*[\w<>[\]]+\s+\w+\s*\([^;]*\)\s*\{?\s*$|^\s*(public|private|protected|internal)?\s*(class|interface|enum|struct)\b/,
 };
 
 export function findEnclosing(
@@ -55,6 +58,7 @@ export function extractImports(sourceLines: string[], limit = 40): string[] {
       trimmed.startsWith("from ") ||
       trimmed.startsWith("package ") ||
       trimmed.startsWith("using ") ||
+      trimmed.startsWith("use ") ||
       /require\(/.test(trimmed)
     ) {
       imports.push(trimmed);
@@ -79,13 +83,13 @@ function firstNonEmpty(lines: string[], start: number): string {
 
 function kindOf(line: string): string {
   if (/\bclass\b/.test(line)) return "class";
-  if (/\b(def|func|function)\b/.test(line)) return "function";
+  if (/\b(def|func|function|fn)\b/.test(line)) return "function";
   return "block";
 }
 
 function nameOf(line: string): string | undefined {
   const match =
-    /\b(?:function|class|def|func|interface|enum)\s+(\w+)/.exec(line) ??
+    /\b(?:function|class|def|func|fn|interface|enum)\s+(\w+)/.exec(line) ??
     /\b(\w+)\s*\(/.exec(line);
   return match?.[1];
 }

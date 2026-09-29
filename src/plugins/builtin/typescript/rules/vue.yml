@@ -88,3 +88,261 @@ rules:
           path: src/Counter.vue
           code: |
             const count = computed(() => props.count);
+
+  - id: vue.template.v-if-v-for
+    title: { en: "v-if and v-for on one element", zh-CN: "同一元素上的 v-if 与 v-for" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [vue]
+      frameworks: [vue]
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'v-for\s*=\s*["''][^"'']+["''][^>]*v-if\s*=|v-if\s*=\s*["''][^"'']+["''][^>]*v-for\s*='
+    question:
+      question: "Do the added lines in `hunk` put v-if and v-for on the same element?"
+      focus: "Lines marked with + that contain both v-if and v-for"
+      true: { what: "v-if and v-for are on the same element" }
+      false: { what: "The filter lives in a computed list or a nested template" }
+    severity:
+      levels: ["A short static list", "A list whose filter depends on item data"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} uses v-if and v-for on the same element."
+        why: "Vue applies v-if first, so the loop variable is not available to the condition."
+      zh-CN:
+        body: "第 {{line}} 行在同一个元素上使用了 v-if 和 v-for。"
+        why: "Vue 先处理 v-if，条件里拿不到循环变量。"
+    fix:
+      hint:
+        en: "Filter the list in a computed property, then v-for the result."
+        zh-CN: "先用计算属性过滤列表，再对结果使用 v-for。"
+    examples:
+      positive:
+        - language: vue
+          path: src/List.vue
+          code: |
+            <li v-for="item in items" v-if="item.on"></li>
+      negative:
+        - language: vue
+          path: src/List.vue
+          code: |
+            <li v-for="item in items" :key="item.id"></li>
+
+  - id: vue.template.index-key
+    title: { en: "v-for keyed by index", zh-CN: "v-for 用 index 作为 key" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [vue]
+      frameworks: [vue]
+    trigger:
+      kind: regex
+      on: added
+      pattern: ':key\s*=\s*["'']index["'']'
+    question:
+      question: "Do the added lines in `hunk` use the loop index as a v-for key?"
+      focus: "Lines marked with + that set :key=\"index\""
+      true: { what: "The key is the array index" }
+      false: { what: "The key is a stable id" }
+    severity:
+      levels: ["A list that never reorders", "A list that can be reordered or filtered"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} uses the array index as a v-for key."
+        why: "Index keys reuse component state when the list changes order."
+      zh-CN:
+        body: "第 {{line}} 行用数组下标作为 v-for 的 key。"
+        why: "列表换序时，下标 key 会复用错误的组件状态。"
+    fix:
+      hint:
+        en: "Use a stable id, such as :key=\"item.id\"."
+        zh-CN: "改用稳定 id，例如 :key=\"item.id\"。"
+    examples:
+      positive:
+        - language: vue
+          path: src/List.vue
+          code: |
+            <li v-for="(item, index) in items" :key="index"></li>
+      negative:
+        - language: vue
+          path: src/List.vue
+          code: |
+            <li v-for="item in items" :key="item.id"></li>
+
+  - id: vue.script.mutate-prop
+    title: { en: "Prop mutation", zh-CN: "修改 prop" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [vue, typescript, javascript]
+      frameworks: [vue]
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\bprops\.[A-Za-z]+\s*='
+    question:
+      question: "Do the added lines in `hunk` assign to a prop?"
+      focus: "Lines marked with + that assign props.something"
+      true: { what: "A prop is assigned inside the component" }
+      false: { what: "The component emits an update instead of writing the prop" }
+    severity:
+      levels: ["A local copy that is also written", "A write that the parent does not expect"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} assigns to a prop."
+        why: "Props are owned by the parent; writing them breaks one-way data flow."
+      zh-CN:
+        body: "第 {{line}} 行给 prop 赋值了。"
+        why: "prop 属于父组件，子组件写入会破坏单向数据流。"
+    fix:
+      hint:
+        en: "Emit an event and let the parent update the value."
+        zh-CN: "改为 emit 事件，由父组件更新这个值。"
+    examples:
+      positive:
+        - language: vue
+          path: src/Counter.vue
+          code: |
+            props.count = 1;
+      negative:
+        - language: vue
+          path: src/Counter.vue
+          code: |
+            emit("update", 1);
+
+  - id: vue.watch.no-cleanup
+    title: { en: "Watch without cleanup", zh-CN: "watch 没有清理" }
+    category: reliability
+    dimension: reliability
+    applies:
+      languages: [vue, typescript, javascript]
+      frameworks: [vue]
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'addEventListener\([^)]*\);\s*\}\s*\)'
+    question:
+      question: "Do the added lines in `hunk` register an event listener inside watch and return no cleanup?"
+      focus: "Lines marked with + that call addEventListener and then close the watcher"
+      true: { what: "The watcher registers a listener and does not remove it" }
+      false: { what: "The watcher returns a function that removes the listener" }
+    severity:
+      levels: ["A watcher that runs once", "A watcher that re-subscribes when the source changes"]
+      map: [medium, high]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} registers an event listener in a watcher without cleanup."
+        why: "Each run of the watcher can add another listener."
+      zh-CN:
+        body: "第 {{line}} 行在 watcher 里注册了事件监听，但没有清理。"
+        why: "watcher 每次执行都可能再挂上一个监听。"
+    fix:
+      hint:
+        en: "Return a function that calls removeEventListener."
+        zh-CN: "返回一个调用 removeEventListener 的函数。"
+    examples:
+      positive:
+        - language: vue
+          path: src/App.vue
+          code: |
+            watch(source, () => { window.addEventListener("x", fn); });
+      negative:
+        - language: vue
+          path: src/App.vue
+          code: |
+            watch(source, () => { window.addEventListener("x", fn); return () => window.removeEventListener("x", fn); });
+
+  - id: vue.template.ref-value
+    title: { en: "Ref .value in the template", zh-CN: "模板里访问了 ref 的 .value" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [vue]
+      frameworks: [vue]
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\{\{[^}]*\.value\s*\}\}'
+    question:
+      question: "Do the added lines in `hunk` read .value on a ref inside the template?"
+      focus: "Lines marked with + that interpolate something.value"
+      true: { what: "The template reads ref.value" }
+      false: { what: "The template reads the ref binding and Vue unwraps it" }
+    severity:
+      levels: ["A display-only mistake", "A binding that renders undefined"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} reads .value inside the template."
+        why: "Templates already unwrap refs, so .value is usually undefined."
+      zh-CN:
+        body: "第 {{line}} 行在模板里读取了 .value。"
+        why: "模板会自动解包 ref，再读 .value 通常是 undefined。"
+    fix:
+      hint:
+        en: "Interpolate the ref itself, such as {{ count }}."
+        zh-CN: "直接插值 ref，例如 {{ count }}。"
+    examples:
+      positive:
+        - language: vue
+          path: src/App.vue
+          code: |
+            <span>{{ count.value }}</span>
+      negative:
+        - language: vue
+          path: src/App.vue
+          code: |
+            <span>{{ count }}</span>
+
+  - id: vue.script.setup-this
+    title: { en: "this inside setup", zh-CN: "setup 里使用 this" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [vue, typescript, javascript]
+      frameworks: [vue]
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\bthis\.[A-Za-z]+'
+    question:
+      question: "Do the added lines in `hunk` read this inside Vue script setup?"
+      focus: "Lines marked with + that use this.something"
+      true: { what: "The setup script reads this" }
+      false: { what: "The script reads props, a ref, or a composable" }
+    severity:
+      levels: ["A read that happens to be undefined", "A read the template depends on"]
+      map: [medium, high]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} uses this in script setup."
+        why: "script setup has no component this binding."
+      zh-CN:
+        body: "第 {{line}} 行在 script setup 里使用了 this。"
+        why: "script setup 没有组件实例上的 this。"
+    fix:
+      hint:
+        en: "Read props or a ref directly instead of this."
+        zh-CN: "直接读 props 或 ref，不要通过 this。"
+    examples:
+      positive:
+        - language: vue
+          path: src/App.vue
+          code: |
+            const n = this.count;
+      negative:
+        - language: vue
+          path: src/App.vue
+          code: |
+            const n = props.count;

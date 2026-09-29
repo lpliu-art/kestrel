@@ -37,6 +37,8 @@ const DEFAULT_PATHS: Record<string, string> = {
   python: "src/example.py",
   java: "src/Example.java",
   go: "src/example.go",
+  rust: "src/lib.rs",
+  csharp: "src/Program.cs",
   "package-json": "package.json",
   xml: "src/UserMapper.xml",
 };

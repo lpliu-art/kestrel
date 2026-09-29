@@ -30,6 +30,18 @@ export function renderMarkdown(
   );
   lines.push(`| ${zh ? "费用" : "Cost"} | $${report.run.costUSD.toFixed(6)} |`);
   lines.push("");
+  if (report.pullRequest) {
+    lines.push(`## ${zh ? "PR 结论" : "Pull request"}`, "");
+    lines.push(report.pullRequest.conclusion, "");
+  }
+  if (report.narration?.enabled) {
+    lines.push(
+      zh
+        ? `叙述器：尝试 ${report.narration.attempted}，保留 ${report.narration.kept}，回退 ${report.narration.fallback}，复核失败 ${report.narration.verifyFailed}。`
+        : `Narrator: attempted ${report.narration.attempted}, kept ${report.narration.kept}, fallback ${report.narration.fallback}, verify failed ${report.narration.verifyFailed}.`,
+    );
+    lines.push("");
+  }
   const groups = ["critical", "high", "medium", "low"] as const;
   for (const severity of groups) {
     const items = report.findings.filter(

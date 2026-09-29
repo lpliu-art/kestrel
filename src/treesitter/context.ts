@@ -16,6 +16,7 @@ const FUNCTION_TYPES = new Set([
   "method_declaration",
   "constructor_declaration",
   "func_literal",
+  "function_item",
 ]);
 
 const CLASS_TYPES = new Set([
@@ -33,6 +34,8 @@ const IMPORT_QUERIES: Record<string, string> = {
   python: "[(import_statement) (import_from_statement)] @imp",
   java: "[(package_declaration) (import_declaration)] @imp",
   go: "[(package_clause) (import_declaration)] @imp",
+  rust: "(use_declaration) @imp",
+  csharp: "(using_directive) @imp",
 };
 
 export function astUnitContext(

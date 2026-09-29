@@ -23,6 +23,8 @@ const GRAMMARS: Record<string, GrammarSpec> = {
   python: { pkg: "tree-sitter-python", file: "tree-sitter-python.wasm" },
   java: { pkg: "tree-sitter-java", file: "tree-sitter-java.wasm" },
   go: { pkg: "tree-sitter-go", file: "tree-sitter-go.wasm" },
+  rust: { pkg: "tree-sitter-rust", file: "tree-sitter-rust.wasm" },
+  csharp: { pkg: "tree-sitter-c-sharp", file: "tree-sitter-c_sharp.wasm" },
 };
 
 type LoadState = "idle" | "ready";

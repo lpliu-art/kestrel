@@ -5,7 +5,7 @@
 
 [English](README.en.md) · [调研](docs/01-research.md) · [概念](docs/02-concept.md) · [技术方案](docs/03-technical-design.md) · [架构图](docs/04-architecture.md) · [实施计划](docs/05-implementation-plan.md) · [目录结构](docs/06-repo-layout.md)
 
-> 状态：0.2.0（P1）。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。真实评审需要 `TYPESAFE_API_KEY`。没有密钥时请使用 `--provider mock`（结果不是 AI 判断）。
+> 状态：0.3.0（P2）。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。真实评审需要 `TYPESAFE_API_KEY`。没有密钥时请使用 `--provider mock`（结果不是 AI 判断）。
 
 ## 为什么是 Kestrel
 
@@ -14,7 +14,7 @@
 1. 确定性管线读取 git diff，按语言插件切出审查单元并做触发器匹配；
 2. 每条规则编译成 Jev 问题（是否命中、反证守卫、严重度、行定位），一个单元一次并行作答；
 3. 用概率阈值分档（report / uncertain / drop），评论锚在真实新增行上；
-4. 中文和英文评论文字来自模板。可选的 LLM 叙述器不在本版本。
+4. 中文和英文评论文字来自模板。可选的 LLM 叙述器默认关闭，只改写评论文字，不改变 Jev 的判断、严重度或哪些发现会被报告。
 
 ## 快速开始
 
@@ -63,8 +63,13 @@ kestrel review --preview --show-payload
 kestrel review --gate --fail-on high
 kestrel review --sarif-in 'reports/*.sarif'
 kestrel explain f_2078a579 --report kestrel.json
+kestrel explain pr --report kestrel.json
 kestrel doctor
+kestrel scan src
+kestrel review --incremental --from main
+kestrel review --llm
 kestrel github post --report kestrel.json --pr 1 --sticky --event auto
+kestrel gitlab post --report kestrel.json --project group/app --mr 1
 kestrel rules test
 kestrel rules lint
 kestrel rules show team.api.validate-body --config .kestrel.yml
@@ -72,7 +77,7 @@ kestrel rules show team.api.validate-body --config .kestrel.yml
 
 退出码：`0` 通过 · `1` 门禁失败 · `2` 用法或配置错误 · `3` Provider / 鉴权错误 · `4` 部分完成且带了 `--strict`（`github post` 在 API 失败且带 `--strict` 时也是 4）。
 
-配置文件是 `.kestrel.yml`，环境变量是 `KESTREL_PROVIDER`、`KESTREL_MODEL`、`KESTREL_PROFILE`、`KESTREL_LANG` 和 `TYPESAFE_API_KEY`。示例见 `examples/.kestrel.yml`。
+配置文件是 `.kestrel.yml`，环境变量是 `KESTREL_PROVIDER`、`KESTREL_MODEL`、`KESTREL_PROFILE`、`KESTREL_LANG`、`TYPESAFE_API_KEY` 和 `KESTREL_LLM_API_KEY`。叙述器还接受 `llm.protocol`（`openai` 或 `anthropic`）、`llm.baseURL` 和 `llm.model`。示例见 `examples/.kestrel.yml`。
 
 ### 团队检查与静态告警
 

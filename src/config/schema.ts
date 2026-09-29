@@ -271,6 +271,15 @@ export interface ResolvedConfig {
     maxEnclosingLines: number;
     sendImports: "auto" | "never";
   };
+  llm: {
+    enabled: boolean;
+    protocol: "openai" | "anthropic";
+    baseURL: string;
+    model: string;
+    apiKeyEnv: string;
+    maxFindings: number;
+    verifyWithJev: boolean;
+  };
   languages: { overrides: Array<{ glob: string; languageId: string }> };
   warnings: string[];
 }

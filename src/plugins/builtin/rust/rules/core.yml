@@ -1,0 +1,440 @@
+pack: rust
+version: "1"
+rules:
+  - id: rust.safety.unwrap
+    title: { en: "unwrap on a Result or Option", zh-CN: "对 Result 或 Option 调用 unwrap" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [rust] }
+    trigger: { kind: regex, on: added, pattern: '\.unwrap\(\)' }
+    question:
+      question: "Do the added lines in `hunk` call unwrap on a value that can be absent or an error?"
+      focus: "Lines marked with + that call unwrap()"
+      true: { what: "unwrap is called on a Result or Option" }
+      false: { what: "The code uses unwrap_or, the question mark operator, or an explicit match" }
+    severity:
+      levels: ["A value that is known to be present", "A value from input or I/O"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls unwrap()."
+        why: "unwrap panics when the value is None or Err."
+      zh-CN:
+        body: "第 {{line}} 行调用了 unwrap()。"
+        why: "值为 None 或 Err 时 unwrap 会 panic。"
+    fix:
+      hint: { en: "Propagate the error with ? or handle both cases.", zh-CN: "用 ? 传递错误，或显式处理两种情况。" }
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            let value = input.unwrap();
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            let value = input.unwrap_or(0);
+
+  - id: rust.safety.expect
+    title: { en: "expect on a Result or Option", zh-CN: "对 Result 或 Option 调用 expect" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [rust] }
+    trigger: { kind: regex, on: added, pattern: '\.expect\(' }
+    question:
+      question: "Do the added lines in `hunk` call expect on a value that can fail?"
+      focus: "Lines marked with + that call expect("
+      true: { what: "expect is called on a Result or Option" }
+      false: { what: "The failure is handled without expect" }
+    severity:
+      levels: ["A programmer invariant", "Input or I/O that can fail"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls expect()."
+        why: "expect panics with a message instead of returning the error."
+      zh-CN:
+        body: "第 {{line}} 行调用了 expect()。"
+        why: "expect 会带着消息 panic，而不是把错误返回给调用方。"
+    fix:
+      hint: { en: "Return the Result or map the error.", zh-CN: "返回 Result，或映射错误。" }
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            let value = input.expect("id");
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            let value = input.unwrap_or(0);
+
+  - id: rust.unsafe.block
+    title: { en: "unsafe block", zh-CN: "unsafe 块" }
+    category: security
+    dimension: security
+    applies: { languages: [rust] }
+    trigger:
+      kind: treesitter
+      on: added
+      query: "(unsafe_block) @hit"
+      pattern: 'unsafe\s*\{'
+    question:
+      question: "Do the added lines in `hunk` introduce an unsafe block?"
+      focus: "Lines marked with + that contain unsafe {"
+      true: { what: "An unsafe block was added" }
+      false: { what: "The code stays in safe Rust" }
+    severity:
+      levels: ["An unsafe block next to a SAFETY comment", "An unsafe block with no stated invariant"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} adds an unsafe block."
+        why: "Unsafe code can break Rust's memory-safety guarantees."
+      zh-CN:
+        body: "第 {{line}} 行新增了 unsafe 块。"
+        why: "unsafe 代码可以打破 Rust 的内存安全保证。"
+    fix:
+      hint: { en: "Keep the block small and state the safety invariant beside it.", zh-CN: "把 unsafe 块缩到最小，并在旁边写明安全不变式。" }
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            unsafe { let x = 1; }
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            let value = 1;
+
+  - id: rust.async.mutex-await
+    title: { en: "Mutex guard held across await", zh-CN: "await 期间持有 Mutex" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [rust] }
+    trigger: { kind: regex, on: added, pattern: '\.lock\(\)\.unwrap\(\);[^\n]*\.await' }
+    question:
+      question: "Do the added lines in `hunk` hold a mutex guard across an await point?"
+      focus: "Lines marked with + that lock a mutex and then await"
+      true: { what: "A guard from lock() is still in scope at an await" }
+      false: { what: "The guard is dropped before the await" }
+    severity:
+      levels: ["A short critical section", "A lock held while waiting on I/O"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} holds a mutex guard across await."
+        why: "The guard is not Send, and the lock stays taken while the task waits."
+      zh-CN:
+        body: "第 {{line}} 行在 await 期间一直持有 mutex guard。"
+        why: "guard 不是 Send，等待期间锁也不会放开。"
+    fix:
+      hint: { en: "Drop the guard before the await.", zh-CN: "在 await 之前丢掉 guard。" }
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            let guard = mutex.lock().unwrap(); ready.await;
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            let guard = mutex.lock().unwrap(); drop(guard);
+
+  - id: rust.security.format-sql
+    title: { en: "SQL built with format", zh-CN: "用 format 拼接 SQL" }
+    category: security
+    dimension: security
+    applies: { languages: [rust] }
+    trigger: { kind: regex, on: added, pattern: 'format!\(\s*"SELECT' }
+    question:
+      question: "Do the added lines in `hunk` build a SQL string with format!?"
+      focus: "Lines marked with + that pass a SELECT string to format!"
+      true: { what: "A SQL statement is interpolated with format!" }
+      false: { what: "The query uses bound parameters" }
+    severity:
+      levels: ["A constant query", "A query that includes request data"]
+      map: [high, critical]
+      default: critical
+    message:
+      en:
+        body: "Line {{line}} builds SQL with format!."
+        why: "Interpolated SQL is an injection sink."
+      zh-CN:
+        body: "第 {{line}} 行用 format! 拼接了 SQL。"
+        why: "把数据插进 SQL 字符串会成为注入点。"
+    fix:
+      hint: { en: "Bind parameters instead of formatting them into the query.", zh-CN: "用绑定参数，不要把数据格式化进查询字符串。" }
+    references: ["CWE-89"]
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            let sql = format!("SELECT * FROM users WHERE id = {}", id);
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            let sql = "SELECT * FROM users WHERE id = $1";
+
+  - id: rust.reliability.todo
+    title: { en: "todo! left in the change", zh-CN: "改动里留下了 todo!" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [rust] }
+    trigger: { kind: regex, on: added, pattern: '\btodo!\(' }
+    question:
+      question: "Do the added lines in `hunk` call the todo! macro?"
+      focus: "Lines marked with + that call todo!"
+      true: { what: "todo! is on a path that can run" }
+      false: { what: "The branch is implemented" }
+    severity:
+      levels: ["A branch that is not reachable yet", "A branch a request can reach"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls todo!."
+        why: "todo! panics when that line runs."
+      zh-CN:
+        body: "第 {{line}} 行调用了 todo!。"
+        why: "执行到这一行时 todo! 会 panic。"
+    fix:
+      hint: { en: "Implement the branch or return an error.", zh-CN: "实现这个分支，或返回错误。" }
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            todo!("parse the header");
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            return Ok(());
+
+  - id: rust.async.block-on
+    title: { en: "block_on inside async code", zh-CN: "在异步代码里 block_on" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [rust] }
+    trigger: { kind: regex, on: added, pattern: '\bblock_on\(' }
+    question:
+      question: "Do the added lines in `hunk` call block_on?"
+      focus: "Lines marked with + that call block_on("
+      true: { what: "block_on is used to wait for a future" }
+      false: { what: "The future is awaited" }
+    severity:
+      levels: ["A call at process start", "A call on an async worker"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls block_on."
+        why: "Blocking the runtime thread can stall other tasks."
+      zh-CN:
+        body: "第 {{line}} 行调用了 block_on。"
+        why: "堵住运行时线程会拖住其他任务。"
+    fix:
+      hint: { en: "Await the future instead of blocking.", zh-CN: "改为 await，不要阻塞。" }
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            runtime.block_on(work());
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            work().await;
+
+  - id: rust.security.command-arg
+    title: { en: "Command built with format", zh-CN: "用 format 构造命令" }
+    category: security
+    dimension: security
+    applies: { languages: [rust] }
+    trigger: { kind: regex, on: added, pattern: 'Command::new\(format!' }
+    question:
+      question: "Do the added lines in `hunk` build a process command with format!?"
+      focus: "Lines marked with + that pass format! to Command::new"
+      true: { what: "The command name or path is interpolated" }
+      false: { what: "The command is a constant and arguments are separate" }
+    severity:
+      levels: ["A constant command", "A command that includes request data"]
+      map: [high, critical]
+      default: critical
+    message:
+      en:
+        body: "Line {{line}} builds a command with format!."
+        why: "Interpolated command strings are an injection sink."
+      zh-CN:
+        body: "第 {{line}} 行用 format! 构造了命令。"
+        why: "把数据拼进命令字符串会成为注入点。"
+    fix:
+      hint: { en: "Pass a constant program and separate arguments to Command.", zh-CN: "程序名用常量，参数单独传给 Command。" }
+    references: ["CWE-78"]
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            Command::new(format!("tool-{}", name));
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            Command::new("tool").arg(name);
+
+  - id: rust.unsafe.transmute
+    title: { en: "mem::transmute", zh-CN: "mem::transmute" }
+    category: security
+    dimension: security
+    applies: { languages: [rust] }
+    trigger: { kind: regex, on: added, pattern: '\btransmute\(' }
+    question:
+      question: "Do the added lines in `hunk` call transmute?"
+      focus: "Lines marked with + that call transmute("
+      true: { what: "transmute reinterprets a value" }
+      false: { what: "The conversion uses a safe API" }
+    severity:
+      levels: ["A conversion between same-sized integers", "A conversion that invents a reference"]
+      map: [high, critical]
+      default: critical
+    message:
+      en:
+        body: "Line {{line}} calls transmute."
+        why: "transmute can create an invalid value with no check."
+      zh-CN:
+        body: "第 {{line}} 行调用了 transmute。"
+        why: "transmute 可以在没有检查的情况下造出非法值。"
+    fix:
+      hint: { en: "Use a safe conversion such as TryFrom.", zh-CN: "改用 TryFrom 这类安全转换。" }
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            let value = unsafe { transmute(bits) };
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            let value = u32::from(bits);
+
+  - id: rust.reliability.mem-forget
+    title: { en: "mem::forget", zh-CN: "mem::forget" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [rust] }
+    trigger: { kind: regex, on: added, pattern: 'mem::forget\(' }
+    question:
+      question: "Do the added lines in `hunk` call mem::forget?"
+      focus: "Lines marked with + that call mem::forget("
+      true: { what: "A value's destructor is skipped with mem::forget" }
+      false: { what: "The value is dropped normally" }
+    severity:
+      levels: ["A value with no resource", "A guard, lock, or file"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls mem::forget."
+        why: "forget skips Drop, so locks and files may never be released."
+      zh-CN:
+        body: "第 {{line}} 行调用了 mem::forget。"
+        why: "forget 会跳过 Drop，锁和文件可能不会被释放。"
+    fix:
+      hint: { en: "Let the value drop, or use ManuallyDrop with an explicit reason.", zh-CN: "让值正常 drop；如果必须推迟，用 ManuallyDrop 并写明原因。" }
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            mem::forget(guard);
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            drop(guard);
+
+  - id: rust.safety.panic
+    title: { en: "panic! on a request path", zh-CN: "请求路径上的 panic!" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [rust] }
+    trigger: { kind: regex, on: added, pattern: '\bpanic!\(' }
+    question:
+      question: "Do the added lines in `hunk` call the panic! macro?"
+      focus: "Lines marked with + that call panic!"
+      true: { what: "panic! is reachable from the added code" }
+      false: { what: "The error is returned instead" }
+    severity:
+      levels: ["A startup invariant", "A path a request can reach"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls panic!."
+        why: "A panic aborts the current task or thread."
+      zh-CN:
+        body: "第 {{line}} 行调用了 panic!。"
+        why: "panic 会中止当前任务或线程。"
+    fix:
+      hint: { en: "Return a Result instead of panicking.", zh-CN: "返回 Result，不要 panic。" }
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            panic!("missing user");
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            return Err(Error::Missing);
+
+  - id: rust.correctness.unreachable
+    title: { en: "unreachable! in added code", zh-CN: "新增代码里的 unreachable!" }
+    category: correctness
+    dimension: correctness
+    applies: { languages: [rust] }
+    trigger: { kind: regex, on: added, pattern: '\bunreachable!\(' }
+    question:
+      question: "Do the added lines in `hunk` call unreachable!?"
+      focus: "Lines marked with + that call unreachable!"
+      true: { what: "unreachable! marks a branch the program can still enter" }
+      false: { what: "The match covers every variant" }
+    severity:
+      levels: ["A branch the type system excludes", "A branch input can still reach"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls unreachable!."
+        why: "If that line runs, the process panics."
+      zh-CN:
+        body: "第 {{line}} 行调用了 unreachable!。"
+        why: "一旦执行到这里，进程会 panic。"
+    fix:
+      hint: { en: "Handle the remaining case or return an error.", zh-CN: "处理剩余情况，或返回错误。" }
+    examples:
+      positive:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            unreachable!("bad state");
+      negative:
+        - language: rust
+          path: src/lib.rs
+          code: |
+            return Err(Error::BadState);

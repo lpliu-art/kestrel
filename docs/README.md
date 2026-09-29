@@ -5,7 +5,7 @@
 
 [English](README.en.md) · [调研](01-research.md) · [概念](02-concept.md) · [技术方案](03-technical-design.md) · [架构图](04-architecture.md) · [实施计划](05-implementation-plan.md) · [目录结构](06-repo-layout.md)
 
-> ⚠️ 状态：0.2.0（P1）已在仓库中实现；本目录仍是设计说明。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。Jev 需要 TypeSafe API Key（访问政策以官方为准）。
+> ⚠️ 状态：0.3.0（P2）已在仓库中实现；本目录仍是设计说明。Kestrel 是社区项目，**与 TypeSafe AI 无隶属关系**。Jev 需要 TypeSafe API Key（访问政策以官方为准）。LLM 叙述器默认关闭，密钥是 `KESTREL_LLM_API_KEY`。
 
 ## 为什么是 Kestrel
 
@@ -67,6 +67,11 @@ kestrel rules list --lang python                                # 查看规则
 kestrel rules show ts.security.sql-string-concat                # 查看规则编译后的 Jev 问题
 kestrel rules test                                              # 运行所有规则正反例
 kestrel explain <findingId> --report kestrel.json               # 查看一条发现背后的全部问答与概率（P1）
+kestrel explain pr --report kestrel.json                        # PR 级风险与测试缺口（P2）
+kestrel scan <paths...>                                         # 全文件审计（P2）
+kestrel review --llm                                            # 可选叙述器，默认关闭（P2）
+kestrel review --incremental --from main                        # 只审上次成功评审之后的提交（P2）
+kestrel gitlab post --report kestrel.json --project group/app --mr 1
 ```
 
 退出码：`0` 通过 · `1` 门禁失败 · `2` 用法/配置错误 · `3` Provider 错误 · `4` 部分失败（`--strict`）。
@@ -137,7 +142,7 @@ gate: { failOn: high, minProbability: 0.8 }
 
 ## 路线图
 
-MVP（0.1）：CLI + 4 语言规则包 + mock/replay/typesafe provider + 终端/JSON/Markdown/SARIF + 门禁 + Skill → P1：tree-sitter、GitHub Action 与 PR 评论、静态工具 SARIF 过滤、团队 checks → P2：LLM 叙述器、React/Vue 深度、Rust/C#、GitLab → P3：评测与阈值校准、会话查看器、单二进制。详见 [实施计划](05-implementation-plan.md)。
+MVP（0.1）：CLI + 4 语言规则包 + mock/replay/typesafe provider + 终端/JSON/Markdown/SARIF + 门禁 + Skill → P1：tree-sitter、GitHub Action 与 PR 评论、静态工具 SARIF 过滤、团队 checks → P2（0.3.0）：LLM 叙述器、React/Vue 深度、Rust/C#、GitLab、scan、增量评审、PR 级判断 → P3：评测与阈值校准、会话查看器、单二进制。详见 [实施计划](05-implementation-plan.md)。
 
 ## 致谢与声明
 

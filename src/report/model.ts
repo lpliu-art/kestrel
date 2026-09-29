@@ -89,7 +89,14 @@ export const reportSchema = z
       .strict(),
     run: z
       .object({
-        mode: z.enum(["workspace", "staged", "commit", "range", "snippet"]),
+        mode: z.enum([
+          "workspace",
+          "staged",
+          "commit",
+          "range",
+          "snippet",
+          "scan",
+        ]),
         base: z.string().optional(),
         head: z.string().optional(),
         startedAt: z.string(),
@@ -187,6 +194,35 @@ export const reportSchema = z
               real: z.number(),
               matters: z.number(),
               probability: z.number(),
+            })
+            .strict(),
+        ),
+      })
+      .strict()
+      .optional(),
+    narration: z
+      .object({
+        enabled: z.boolean(),
+        attempted: z.number().int().nonnegative(),
+        kept: z.number().int().nonnegative(),
+        fallback: z.number().int().nonnegative(),
+        verifyFailed: z.number().int().nonnegative(),
+      })
+      .strict()
+      .optional(),
+    pullRequest: z
+      .object({
+        risk: z.number(),
+        testGap: z.number(),
+        testsChanged: z.array(z.string()),
+        conclusion: z.string(),
+        model: z.string(),
+        questions: z.array(
+          z
+            .object({
+              key: z.string(),
+              instructions: z.unknown(),
+              answer: z.unknown(),
             })
             .strict(),
         ),

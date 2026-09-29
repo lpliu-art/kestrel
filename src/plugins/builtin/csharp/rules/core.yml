@@ -1,0 +1,443 @@
+pack: csharp
+version: "1"
+rules:
+  - id: csharp.async.async-void
+    title: { en: "async void method", zh-CN: "async void 方法" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [csharp] }
+    trigger: { kind: regex, on: added, pattern: '\basync\s+void\b' }
+    question:
+      question: "Do the added lines in `hunk` declare an async void method?"
+      focus: "Lines marked with + that contain async void"
+      true: { what: "A method is async void" }
+      false: { what: "The method returns Task or ValueTask" }
+    severity:
+      levels: ["A UI event handler", "A method that callers need to await"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} declares an async void method."
+        why: "Exceptions from async void are posted to the synchronization context and callers cannot await the work."
+      zh-CN:
+        body: "第 {{line}} 行声明了 async void 方法。"
+        why: "async void 的异常会抛到同步上下文，调用方也无法 await。"
+    fix:
+      hint: { en: "Return Task instead of void.", zh-CN: "把返回类型改成 Task。" }
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            async void Run() { await Step(); }
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            async Task Run() { await Step(); }
+
+  - id: csharp.async.blocking-result
+    title: { en: "Blocking on Task.Result", zh-CN: "阻塞在 Task.Result" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [csharp] }
+    trigger: { kind: regex, on: added, pattern: '\.Result\b' }
+    question:
+      question: "Do the added lines in `hunk` read Task.Result?"
+      focus: "Lines marked with + that read .Result"
+      true: { what: "The code blocks on Task.Result" }
+      false: { what: "The task is awaited" }
+    severity:
+      levels: ["A console main method", "A call on a thread that owns a synchronization context"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} blocks on Task.Result."
+        why: "Result can deadlock when the task needs the blocked thread to finish."
+      zh-CN:
+        body: "第 {{line}} 行阻塞在 Task.Result 上。"
+        why: "如果任务还需要被堵住的线程才能完成，Result 会死锁。"
+    fix:
+      hint: { en: "Await the task.", zh-CN: "改为 await 这个任务。" }
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            var user = task.Result;
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            var user = await task;
+
+  - id: csharp.async.blocking-wait
+    title: { en: "Blocking on Task.Wait", zh-CN: "阻塞在 Task.Wait" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [csharp] }
+    trigger:
+      kind: treesitter
+      on: added
+      query: '(invocation_expression (member_access_expression name: (identifier) @name) @call (#eq? @name "Wait"))'
+      pattern: '\.Wait\(\)'
+    question:
+      question: "Do the added lines in `hunk` call Task.Wait()?"
+      focus: "Lines marked with + that call .Wait()"
+      true: { what: "The code blocks on Wait()" }
+      false: { what: "The task is awaited" }
+    severity:
+      levels: ["A one-time startup wait", "A wait on a request thread"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls Wait() on a task."
+        why: "Wait blocks the thread and can deadlock with a synchronization context."
+      zh-CN:
+        body: "第 {{line}} 行对任务调用了 Wait()。"
+        why: "Wait 会堵住线程，并可能和同步上下文死锁。"
+    fix:
+      hint: { en: "Await the task instead of calling Wait().", zh-CN: "改为 await，不要调用 Wait()。" }
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            task.Wait();
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            await task;
+
+  - id: csharp.security.sql-concat
+    title: { en: "SQL built by concatenation", zh-CN: "拼接 SQL" }
+    category: security
+    dimension: security
+    applies: { languages: [csharp] }
+    trigger: { kind: regex, on: added, pattern: 'new SqlCommand\([^)]*\+' }
+    question:
+      question: "Do the added lines in `hunk` concatenate a value into a SqlCommand?"
+      focus: "Lines marked with + that construct SqlCommand with +"
+      true: { what: "The command text is built with string concatenation" }
+      false: { what: "The command uses a parameter" }
+    severity:
+      levels: ["A constant fragment", "A fragment that includes request data"]
+      map: [high, critical]
+      default: critical
+    message:
+      en:
+        body: "Line {{line}} concatenates a value into a SqlCommand."
+        why: "Concatenated SQL is an injection sink."
+      zh-CN:
+        body: "第 {{line}} 行把值拼进了 SqlCommand。"
+        why: "拼接 SQL 会成为注入点。"
+    fix:
+      hint: { en: "Use a parameter such as @id.", zh-CN: "改用 @id 这样的参数。" }
+    references: ["CWE-89"]
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            var cmd = new SqlCommand("SELECT " + id, conn);
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            var cmd = new SqlCommand("SELECT * FROM users WHERE id = @id", conn);
+
+  - id: csharp.reliability.undisposed
+    title: { en: "SqlConnection not disposed", zh-CN: "SqlConnection 没有释放" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [csharp] }
+    trigger: { kind: regex, on: added, pattern: '(?<!using )var\s+\w+\s*=\s*new SqlConnection' }
+    question:
+      question: "Do the added lines in `hunk` construct a SqlConnection without using?"
+      focus: "Lines marked with + that assign new SqlConnection"
+      true: { what: "A SqlConnection is created and not bound with using" }
+      false: { what: "The connection is created with using" }
+    severity:
+      levels: ["A short-lived local", "A connection that can outlive the request"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} creates a SqlConnection without using."
+        why: "An undisposed connection holds a pool slot until finalization."
+      zh-CN:
+        body: "第 {{line}} 行创建了 SqlConnection，但没有 using。"
+        why: "未释放的连接会一直占着连接池，直到终结器运行。"
+    fix:
+      hint: { en: "Write using var conn = new SqlConnection(cs).", zh-CN: "写成 using var conn = new SqlConnection(cs)。" }
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            var conn = new SqlConnection(cs);
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            using var conn = new SqlConnection(cs);
+
+  - id: csharp.security.binary-formatter
+    title: { en: "BinaryFormatter", zh-CN: "BinaryFormatter" }
+    category: security
+    dimension: security
+    applies: { languages: [csharp] }
+    trigger: { kind: regex, on: added, pattern: '\bBinaryFormatter\b' }
+    question:
+      question: "Do the added lines in `hunk` use BinaryFormatter?"
+      focus: "Lines marked with + that mention BinaryFormatter"
+      true: { what: "BinaryFormatter is constructed or called" }
+      false: { what: "A bounded serializer is used" }
+    severity:
+      levels: ["A formatter that is constructed", "A formatter that deserializes input"]
+      map: [high, critical]
+      default: critical
+    message:
+      en:
+        body: "Line {{line}} uses BinaryFormatter."
+        why: "BinaryFormatter can run code while deserializing untrusted input."
+      zh-CN:
+        body: "第 {{line}} 行使用了 BinaryFormatter。"
+        why: "反序列化不可信输入时，BinaryFormatter 可以执行代码。"
+    fix:
+      hint: { en: "Use a serializer that does not load arbitrary types.", zh-CN: "改用不会加载任意类型的序列化器。" }
+    references: ["CWE-502"]
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            var formatter = new BinaryFormatter();
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            var formatter = new JsonSerializerOptions();
+
+  - id: csharp.correctness.empty-catch
+    title: { en: "Empty catch", zh-CN: "空的 catch" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [csharp] }
+    trigger: { kind: regex, on: added, pattern: 'catch\s*(\([^)]*\))?\s*\{\s*\}' }
+    question:
+      question: "Do the added lines in `hunk` catch an exception and ignore it?"
+      focus: "Lines marked with + whose catch body is empty"
+      true: { what: "A catch block has an empty body" }
+      false: { what: "The catch logs, wraps, or rethrows the exception" }
+    severity:
+      levels: ["A catch that ignores a known benign case", "A catch that hides a failure"]
+      map: [medium, high]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} has an empty catch."
+        why: "The failure disappears and later code runs as if it succeeded."
+      zh-CN:
+        body: "第 {{line}} 行的 catch 是空的。"
+        why: "失败被吞掉后，后面的代码会当作成功继续跑。"
+    fix:
+      hint: { en: "Log the exception or rethrow it.", zh-CN: "记录异常，或重新抛出。" }
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            catch (Exception) { }
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            catch (Exception ex) { throw; }
+
+  - id: csharp.security.path-combine
+    title: { en: "Path.Combine with request data", zh-CN: "Path.Combine 拼进了请求数据" }
+    category: security
+    dimension: security
+    applies: { languages: [csharp] }
+    trigger: { kind: regex, on: added, pattern: 'Path\.Combine\([^)]*user' }
+    question:
+      question: "Do the added lines in `hunk` pass request data to Path.Combine?"
+      focus: "Lines marked with + that call Path.Combine with a user value"
+      true: { what: "A user-controlled segment is combined into a path" }
+      false: { what: "The combined segment is a constant" }
+    severity:
+      levels: ["A segment that is a file name", "A segment that can contain .."]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} combines a user value into a path."
+        why: "A value containing .. can escape the intended directory."
+      zh-CN:
+        body: "第 {{line}} 行把用户数据拼进了路径。"
+        why: "带有 .. 的值可以逃出预期目录。"
+    fix:
+      hint: { en: "Reject segments that contain separators or .. before combining.", zh-CN: "拼接前拒绝包含分隔符或 .. 的片段。" }
+    references: ["CWE-22"]
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            var path = Path.Combine(root, userPath);
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            var path = Path.Combine(root, "static");
+
+  - id: csharp.reliability.thread-abort
+    title: { en: "Thread.Abort", zh-CN: "Thread.Abort" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [csharp] }
+    trigger: { kind: regex, on: added, pattern: 'Thread\.Abort\(' }
+    question:
+      question: "Do the added lines in `hunk` call Thread.Abort?"
+      focus: "Lines marked with + that call Thread.Abort("
+      true: { what: "Thread.Abort is called" }
+      false: { what: "The thread is asked to stop cooperatively" }
+    severity:
+      levels: ["A call in leftover code", "A call that aborts a worker"]
+      map: [high, critical]
+      default: critical
+    message:
+      en:
+        body: "Line {{line}} calls Thread.Abort."
+        why: "Abort injects an exception at an arbitrary instruction."
+      zh-CN:
+        body: "第 {{line}} 行调用了 Thread.Abort。"
+        why: "Abort 会在任意指令处注入异常。"
+    fix:
+      hint: { en: "Use a cancellation token.", zh-CN: "改用取消标记。" }
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            Thread.Abort();
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            source.Cancel();
+
+  - id: csharp.security.hardcoded-password
+    title: { en: "Hard-coded password", zh-CN: "硬编码密码" }
+    category: security
+    dimension: security
+    applies: { languages: [csharp] }
+    trigger: { kind: regex, on: added, pattern: 'Password\s*=\s*"' }
+    question:
+      question: "Do the added lines in `hunk` assign a string literal to a password?"
+      focus: "Lines marked with + that assign Password = \""
+      true: { what: "A password is a string literal" }
+      false: { what: "The password is read from configuration or a secret store" }
+    severity:
+      levels: ["A placeholder in a sample", "A credential that can authenticate"]
+      map: [high, critical]
+      default: critical
+    message:
+      en:
+        body: "Line {{line}} assigns a string literal to a password."
+        why: "A password in source is copied into every checkout and build log."
+      zh-CN:
+        body: "第 {{line}} 行把字符串字面量赋给了密码。"
+        why: "写在源码里的密码会进入每一次检出和构建日志。"
+    fix:
+      hint: { en: "Read the password from a secret store.", zh-CN: "从密钥存储读取密码。" }
+    references: ["CWE-798"]
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            Password = "hunter2";
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            Password = secret;
+
+  - id: csharp.correctness.null-forgiving
+    title: { en: "Null-forgiving operator", zh-CN: "空原谅运算符" }
+    category: correctness
+    dimension: correctness
+    applies: { languages: [csharp] }
+    trigger: { kind: regex, on: added, pattern: '\bnull!' }
+    question:
+      question: "Do the added lines in `hunk` use the null-forgiving operator on null?"
+      focus: "Lines marked with + that contain null!"
+      true: { what: "null! suppresses a null warning" }
+      false: { what: "The value is a real non-null instance" }
+    severity:
+      levels: ["A suppression next to a checked assignment", "A suppression on a value that is still null"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} uses null!."
+        why: "The operator silences the compiler without making the value non-null."
+      zh-CN:
+        body: "第 {{line}} 行使用了 null!。"
+        why: "这个运算符只是让编译器安静，值本身仍可能是 null。"
+    fix:
+      hint: { en: "Assign a real value or handle the null case.", zh-CN: "赋一个真实的值，或处理 null。" }
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            string name = null!;
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            string name = "";
+
+  - id: csharp.security.xml-document
+    title: { en: "XmlDocument without limits", zh-CN: "未限制的 XmlDocument" }
+    category: security
+    dimension: security
+    applies: { languages: [csharp] }
+    trigger: { kind: regex, on: added, pattern: 'new XmlDocument\(\)' }
+    question:
+      question: "Do the added lines in `hunk` construct an XmlDocument?"
+      focus: "Lines marked with + that call new XmlDocument()"
+      true: { what: "XmlDocument is constructed for parsing input" }
+      false: { what: "The code uses a reader with DtdProcessing prohibited" }
+    severity:
+      levels: ["A document that parses a constant", "A document that parses request XML"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} constructs an XmlDocument."
+        why: "The default resolver can load external entities from untrusted XML."
+      zh-CN:
+        body: "第 {{line}} 行创建了 XmlDocument。"
+        why: "默认解析器会从不可信 XML 加载外部实体。"
+    fix:
+      hint: { en: "Use XmlReader with DtdProcessing set to Prohibit.", zh-CN: "改用 XmlReader，并把 DtdProcessing 设为 Prohibit。" }
+    references: ["CWE-611"]
+    examples:
+      positive:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            var doc = new XmlDocument();
+      negative:
+        - language: csharp
+          path: src/Program.cs
+          code: |
+            var doc = new XDocument();

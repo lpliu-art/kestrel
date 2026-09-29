@@ -1,11 +1,32 @@
 import type { Finding, Report } from "../report/model.ts";
 
 export function explainFinding(report: Report, findingId: string): string {
+  if (findingId === "pr" || findingId === "pull-request")
+    return explainPullRequest(report);
   const finding = report.findings.find(
     (item) => item.id === findingId || item.fingerprint === findingId,
   );
   if (!finding) return "";
   return renderExplanation(finding);
+}
+
+export function explainPullRequest(report: Report): string {
+  const section = report.pullRequest;
+  if (!section) return "";
+  const lines = [
+    "pull request",
+    section.conclusion,
+    `risk ${section.risk}`,
+    `testGap ${section.testGap}`,
+    `tests ${section.testsChanged.join(", ") || "none"}`,
+    `model ${section.model}`,
+    "questions:",
+  ];
+  for (const question of section.questions) {
+    lines.push(`- ${question.key} ${formatAnswer(question.answer)}`);
+    lines.push(`  ${formatInstructions(question.instructions)}`);
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 export function renderExplanation(finding: Finding): string {

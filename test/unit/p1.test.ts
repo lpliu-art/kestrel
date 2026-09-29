@@ -524,9 +524,23 @@ describe("action and builtin rules", () => {
     const counts = new Map<string, number>();
     for (const rule of rules)
       counts.set(rule.pluginId, (counts.get(rule.pluginId) ?? 0) + 1);
-    for (const id of ["core", "typescript", "python", "java", "go"]) {
+    for (const id of [
+      "core",
+      "typescript",
+      "python",
+      "java",
+      "go",
+      "rust",
+      "csharp",
+    ]) {
       expect(counts.get(id) ?? 0).toBeGreaterThanOrEqual(12);
     }
+    expect(
+      rules.filter((rule) => rule.id.startsWith("react.")).length,
+    ).toBeGreaterThanOrEqual(8);
+    expect(
+      rules.filter((rule) => rule.id.startsWith("vue.")).length,
+    ).toBeGreaterThanOrEqual(8);
     const tested = await testRules(rules, "en");
     expect(tested.failed).toEqual([]);
   });

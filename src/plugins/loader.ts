@@ -4,9 +4,11 @@ import type { ResolvedConfig } from "../config/schema.ts";
 import { KestrelError } from "../util/errors.ts";
 import { type KestrelPlugin, PLUGIN_API_VERSION } from "./api.ts";
 import { corePlugin } from "./builtin/core/index.ts";
+import { csharpPlugin } from "./builtin/csharp/index.ts";
 import { goPlugin } from "./builtin/go/index.ts";
 import { javaPlugin } from "./builtin/java/index.ts";
 import { pythonPlugin } from "./builtin/python/index.ts";
+import { rustPlugin } from "./builtin/rust/index.ts";
 import { typescriptPlugin } from "./builtin/typescript/index.ts";
 import { PluginRegistry } from "./registry.ts";
 
@@ -16,6 +18,8 @@ export const builtinPlugins: KestrelPlugin[] = [
   pythonPlugin,
   javaPlugin,
   goPlugin,
+  rustPlugin,
+  csharpPlugin,
 ];
 
 export async function loadPlugins(

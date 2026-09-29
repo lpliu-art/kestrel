@@ -27,3 +27,11 @@ checks:
 static:
   sarif: []
   filterMode: added
+
+llm:
+  enabled: false
+  protocol: openai
+  baseURL: https://api.openai.com/v1
+  apiKeyEnv: KESTREL_LLM_API_KEY
+  maxFindings: 10
+  verifyWithJev: true

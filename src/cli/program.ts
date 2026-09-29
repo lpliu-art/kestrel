@@ -75,6 +75,11 @@ program
     [] as string[],
   )
   .option("--log-payload", "Store raw state in the session log")
+  .option("--llm", "Enable the optional LLM narrator")
+  .option(
+    "--incremental",
+    "Review only commits since the last successful incremental run",
+  )
   .option("--config <path>")
   .action(async (paths: string[], opts: Record<string, unknown>) => {
     const chosen = (opts.format as string[]).filter((item): item is Format =>
@@ -124,6 +129,8 @@ program
       sarifIncludeUncertain: Boolean(opts.sarifIncludeUncertain),
       sarifIn: (opts.sarifIn as string[] | undefined) ?? [],
       logPayload: Boolean(opts.logPayload),
+      llm: Boolean(opts.llm),
+      incremental: Boolean(opts.incremental),
       configPath: opts.config as string | undefined,
       tty: Boolean(process.stdout.isTTY),
       ci: process.env.CI === "true",
@@ -153,6 +160,62 @@ program
         (list.length === 1 && list[0] === "markdown"
           ? (opts.out as string | undefined)
           : undefined),
+    });
+    process.exitCode = result.exitCode;
+  });
+
+program
+  .command("scan")
+  .description("Audit whole files as virtual all-added units")
+  .argument("<paths...>")
+  .option("--provider <name>", "typesafe | http | mock | replay")
+  .option("--model <model>")
+  .option("--profile <name>", "chill | balanced | assertive")
+  .option("--lang <lang>", "zh-CN | en")
+  .option(
+    "--format <format>",
+    "terminal, json, sarif, or markdown (repeatable)",
+    collectFormat,
+    [] as string[],
+  )
+  .option("--out <file>")
+  .option("--budget-tokens <n>", "Input-token budget", parseIntArg)
+  .option("--no-cache", "Disable the response cache")
+  .option("--llm", "Enable the optional LLM narrator")
+  .option("--gate", "Exit 1 when the verdict is request_changes")
+  .option("--config <path>")
+  .action(async (paths: string[], opts: Record<string, unknown>) => {
+    const chosen = (opts.format as string[]).filter((item): item is Format =>
+      (formats as readonly string[]).includes(item),
+    );
+    const provider = opts.provider as ReviewOptions["provider"] | undefined;
+    if (
+      provider &&
+      !["typesafe", "http", "mock", "replay"].includes(provider)
+    ) {
+      fail(2, `Invalid --provider ${provider}`);
+    }
+    const result = await runReview({
+      cwd: process.cwd(),
+      paths,
+      mode: "scan",
+      provider,
+      providerExplicit: Boolean(provider),
+      model: opts.model as string | undefined,
+      profile: opts.profile as ReviewOptions["profile"],
+      lang: opts.lang as ReviewOptions["lang"],
+      formats: chosen.length > 0 ? chosen : undefined,
+      gate: Boolean(opts.gate),
+      budgetTokens: opts.budgetTokens as number | undefined,
+      noCache: opts.cache === false,
+      llm: Boolean(opts.llm),
+      configPath: opts.config as string | undefined,
+      tty: Boolean(process.stdout.isTTY),
+      ci: process.env.CI === "true",
+      env: process.env,
+    });
+    await emit(result, chosen.length > 0 ? chosen : ["terminal"], {
+      terminal: opts.out as string | undefined,
     });
     process.exitCode = result.exitCode;
   });
@@ -463,6 +526,61 @@ github
     for (const warning of result.warnings) process.stderr.write(`${warning}\n`);
     process.stdout.write(
       `github post: event=${result.event} comments=${result.postedComments} duplicates=${result.skippedDuplicates}${result.downgraded ? " downgraded=COMMENT" : ""}\n`,
+    );
+    process.exitCode = result.exitCode;
+  });
+
+const gitlab = program
+  .command("gitlab")
+  .description("GitLab merge request integration");
+gitlab
+  .command("post")
+  .description("Post merge request discussions for a JSON report")
+  .requiredOption("--report <file>", "JSON report from kestrel review")
+  .option("--project <path>", "GitLab project path or id")
+  .option("--mr <n>", "Merge request IID", parseIntArg)
+  .option("--summary-only", "Do not post inline discussions")
+  .option("--strict", "Exit 4 when the GitLab API request fails")
+  .action(async (opts: Record<string, unknown>) => {
+    const { readFile } = await import("node:fs/promises");
+    const { parseReport } = await import("../report/model.ts");
+    const { renderMarkdown } = await import("../render/markdown.ts");
+    const { postGitLabReview } = await import("../gitlab/post.ts");
+    const token = process.env.GITLAB_TOKEN ?? process.env.CI_JOB_TOKEN;
+    if (!token) fail(2, "GITLAB_TOKEN is required to post a review.");
+    const project =
+      (opts.project as string | undefined) ?? process.env.CI_PROJECT_PATH;
+    if (!project) fail(2, "Pass --project or set CI_PROJECT_PATH.");
+    const mr =
+      (opts.mr as number | undefined) ??
+      (process.env.CI_MERGE_REQUEST_IID
+        ? Number(process.env.CI_MERGE_REQUEST_IID)
+        : undefined);
+    if (!mr || !Number.isFinite(mr))
+      fail(2, "Pass --mr or set CI_MERGE_REQUEST_IID.");
+    let report: ReturnType<typeof parseReport>;
+    try {
+      report = parseReport(
+        JSON.parse(await readFile(String(opts.report), "utf8")),
+      );
+    } catch (error) {
+      fail(
+        2,
+        `Cannot read report: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    const result = await postGitLabReview({
+      report,
+      summaryBody: renderMarkdown(report, "collapsed"),
+      project,
+      mr,
+      token,
+      summaryOnly: Boolean(opts.summaryOnly),
+      strict: Boolean(opts.strict),
+    });
+    for (const warning of result.warnings) process.stderr.write(`${warning}\n`);
+    process.stdout.write(
+      `gitlab post: comments=${result.postedComments} duplicates=${result.skippedDuplicates}\n`,
     );
     process.exitCode = result.exitCode;
   });
