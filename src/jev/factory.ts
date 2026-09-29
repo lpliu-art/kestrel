@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { resolveApiKeyForRun } from "../auth/onboard.ts";
 import { readUserConfig } from "../config/load.ts";
 import type { ResolvedConfig } from "../config/schema.ts";
 import type { LoadedRule } from "../rules/schema.ts";
@@ -32,6 +33,7 @@ export interface ProviderBuildOptions {
   cwd: string;
   env: NodeJS.ProcessEnv;
   providerExplicit: boolean;
+  /** True when both stdin and stdout are TTYs. */
   tty: boolean;
   ci: boolean;
   replayDir?: string;
@@ -39,6 +41,8 @@ export interface ProviderBuildOptions {
   recordDir?: string;
   fetchImpl?: typeof fetch;
   warnings?: string[];
+  /** Injected in tests for the first-run key prompt. */
+  promptApiKey?: (message: string) => Promise<string>;
 }
 
 export async function buildProvider(
@@ -47,20 +51,31 @@ export async function buildProvider(
   const warnings = options.warnings ?? [];
   let name = options.config.jev.provider;
   const stats = emptyStats();
-  const apiKey = options.env.TYPESAFE_API_KEY;
   const configChoseProvider =
     options.providerExplicit ||
     Boolean(options.env.KESTREL_PROVIDER) ||
     projectChoosesProvider(options.cwd);
 
+  const onboard = await resolveApiKeyForRun({
+    env: options.env,
+    interactive: options.tty && !configChoseProvider,
+    ci: options.ci,
+    lang: options.config.output.language,
+    prompt: options.promptApiKey,
+  });
+  warnings.push(...onboard.warnings);
+  const apiKey = onboard.key;
+
   if ((name === "typesafe" || name === "http") && !apiKey) {
     const interactive = options.tty && !options.ci && !configChoseProvider;
     if (interactive) {
-      warnings.push(
-        options.config.output.language === "en"
-          ? "No TYPESAFE_API_KEY; falling back to the mock provider. Results are not AI judgments."
-          : "未设置 TYPESAFE_API_KEY，已改用 mock。结果不是 AI 判断。",
-      );
+      if (!onboard.warnings.some((item) => /mock/i.test(item))) {
+        warnings.push(
+          options.config.output.language === "en"
+            ? "No TYPESAFE_API_KEY; falling back to the mock provider. Results are not AI judgments."
+            : "未设置 TYPESAFE_API_KEY，已改用 mock。结果不是 AI 判断。",
+        );
+      }
       name = "mock";
     } else {
       throw new KestrelError(
@@ -166,7 +181,7 @@ function projectChoosesProvider(cwd: string): boolean {
 
 export function missingKeyMessage(lang: "zh-CN" | "en"): string {
   if (lang === "en") {
-    return "Missing TYPESAFE_API_KEY. Real reviews need a TypeSafe API key. Use --provider mock for an offline demo (not an AI judgment), or set TYPESAFE_API_KEY and retry.";
+    return "Missing TYPESAFE_API_KEY. Real reviews need a TypeSafe API key. Use --provider mock for an offline demo (not an AI judgment), run kestrel auth set, or set TYPESAFE_API_KEY and retry.";
   }
-  return "缺少 TYPESAFE_API_KEY。真实审查需要 TypeSafe API 密钥。离线演示请使用 --provider mock（结果不是 AI 判断），或设置 TYPESAFE_API_KEY 后重试。";
+  return "缺少 TYPESAFE_API_KEY。真实审查需要 TypeSafe API 密钥。离线演示请使用 --provider mock（结果不是 AI 判断），或运行 kestrel auth set / 设置 TYPESAFE_API_KEY 后重试。";
 }

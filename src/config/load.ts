@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse } from "yaml";
+import { resolveApiKey } from "../auth/credentials.ts";
+import { globalConfigPath } from "../auth/paths.ts";
 import { KestrelError } from "../util/errors.ts";
 import { defaultConfig } from "./defaults.ts";
 import {
@@ -95,11 +96,6 @@ function findProjectConfig(cwd: string): string | undefined {
     if (existsSync(path)) return path;
   }
   return undefined;
-}
-
-function globalConfigPath(env: NodeJS.ProcessEnv): string {
-  const base = env.XDG_CONFIG_HOME || join(homedir(), ".config");
-  return join(base, "kestrel", "config.yml");
 }
 
 function mergeUser(target: ResolvedConfig, user: UserConfig): void {
@@ -253,10 +249,17 @@ export function maskConfig(
   config: ResolvedConfig,
   env: NodeJS.ProcessEnv = process.env,
 ): unknown {
+  const resolved = resolveApiKey(env);
+  const label =
+    resolved.source === "env"
+      ? "(env)"
+      : resolved.source === "file"
+        ? "(file)"
+        : "(missing)";
   return {
     ...config,
     secrets: {
-      TYPESAFE_API_KEY: env.TYPESAFE_API_KEY ? "(set)" : "(missing)",
+      TYPESAFE_API_KEY: label,
     },
   };
 }

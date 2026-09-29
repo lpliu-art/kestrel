@@ -243,7 +243,7 @@ describe("kestrel commands", () => {
     const printed = await cli(["config", "print"], cwd, {
       TYPESAFE_API_KEY: "secret-value",
     });
-    expect(printed.out).toMatch(/\(set\)/);
+    expect(printed.out).toMatch(/\(env\)/);
     expect(printed.out).not.toMatch(/secret-value/);
     expect((await cli(["config", "validate"], cwd)).out).toMatch(/valid/);
     const stats = await cli(["cache", "stats"], cwd);

@@ -1,6 +1,17 @@
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Command, CommanderError } from "commander";
+import {
+  clearCredentials,
+  resolveApiKey,
+  statusText,
+  writeCredentials,
+} from "../auth/credentials.ts";
+import {
+  keyPromptMessage,
+  promptHidden,
+  readPipedStdin,
+} from "../auth/prompt.ts";
 import { CONFIG_TEMPLATE } from "../config/defaults.ts";
 import { loadConfig, maskConfig } from "../config/load.ts";
 import { renderEval, runEval } from "../eval/run.ts";
@@ -15,6 +26,8 @@ import { isKestrelError, KestrelError } from "../util/errors.ts";
 import { stableStringify } from "../util/json.ts";
 import { toolVersion } from "../util/package.ts";
 import { writeViewer } from "../view/html.ts";
+
+installEpipeGuard();
 
 export const program = new Command();
 program.exitOverride();
@@ -139,7 +152,7 @@ program
       otel: opts.otel as string | undefined,
       incremental: Boolean(opts.incremental),
       configPath: opts.config as string | undefined,
-      tty: Boolean(process.stdout.isTTY),
+      tty: Boolean(process.stdout.isTTY && process.stdin.isTTY),
       ci: process.env.CI === "true",
       env: process.env,
     });
@@ -221,7 +234,7 @@ program
       explore: Boolean(opts.explore),
       otel: opts.otel as string | undefined,
       configPath: opts.config as string | undefined,
-      tty: Boolean(process.stdout.isTTY),
+      tty: Boolean(process.stdout.isTTY && process.stdin.isTTY),
       ci: process.env.CI === "true",
       env: process.env,
     });
@@ -480,6 +493,56 @@ program
     });
     process.stdout.write(result.text);
     process.exitCode = result.exitCode;
+  });
+
+const auth = program
+  .command("auth")
+  .description("Manage the stored Jev API key");
+
+auth
+  .command("set")
+  .description("Store a Jev API key in the user credentials file")
+  .option(
+    "--key <key>",
+    "API key (prefer a prompt or stdin over shell history)",
+  )
+  .option("--lang <lang>", "zh-CN | en")
+  .action(async (opts: { key?: string; lang?: string }) => {
+    const lang = opts.lang === "en" ? "en" : "zh-CN";
+    let key = opts.key?.trim();
+    if (!key) {
+      if (process.stdin.isTTY) {
+        key = (await promptHidden(keyPromptMessage(lang))).trim();
+      } else {
+        key = (await readPipedStdin()).trim();
+      }
+    }
+    if (!key)
+      fail(2, lang === "en" ? "No API key provided." : "未提供 API 密钥。");
+    const path = writeCredentials(key, process.env);
+    process.stdout.write(
+      lang === "en"
+        ? `stored key ending ${key.slice(-4)} in ${path}\n`
+        : `已将末尾为 ${key.slice(-4)} 的密钥写入 ${path}\n`,
+    );
+  });
+
+auth
+  .command("status")
+  .description("Show where the API key comes from")
+  .action(() => {
+    const resolved = resolveApiKey(process.env);
+    process.stdout.write(`${statusText(resolved, "en")}\n`);
+  });
+
+auth
+  .command("clear")
+  .description("Remove the stored API key")
+  .action(() => {
+    const removed = clearCredentials(process.env);
+    process.stdout.write(
+      removed ? "cleared stored API key\n" : "no stored API key\n",
+    );
   });
 
 const github = program
@@ -755,4 +818,13 @@ async function emit(
       `No output path for ${format}. Pass --out-${format === "markdown" ? "md" : format}.\n`,
     );
   }
+}
+
+/** Exit quietly when a downstream pipe (e.g. `head`) closes stdout early. */
+function installEpipeGuard(): void {
+  const onError = (error: NodeJS.ErrnoException) => {
+    if (error.code === "EPIPE") process.exit(0);
+  };
+  process.stdout.on("error", onError);
+  process.stderr.on("error", onError);
 }

@@ -493,6 +493,15 @@
         }
       },
       "additionalProperties": false
+    },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "skipKeyPrompt": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false
