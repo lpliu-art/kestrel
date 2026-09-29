@@ -314,6 +314,8 @@ describe("checks, explain, doctor, drift", () => {
     expect(missing.exitCode).toBe(0);
     expect(missing.text).toContain("TYPESAFE_API_KEY is missing");
     expect(missing.text).toContain("skipped");
+    expect(missing.text).toContain("parser: tree-sitter (typescript)");
+    expect(missing.text).not.toContain("regex-fallback");
     const present = await runDoctor({
       cwd,
       config,

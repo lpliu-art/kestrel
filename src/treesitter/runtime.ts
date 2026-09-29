@@ -1,7 +1,5 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { Language, Parser, type Tree } from "web-tree-sitter";
 
 function moduleRequire(): NodeRequire {
@@ -35,17 +33,31 @@ const GRAMMARS: Record<string, GrammarSpec> = {
 
 type LoadState = "idle" | "ready";
 
+interface SeaLike {
+  isSea?: () => boolean;
+  getAsset?: (key: string) => ArrayBuffer | Uint8Array | string | undefined;
+}
+
 let state: LoadState = "idle";
 let initPromise: Promise<void> | undefined;
 const languages = new Map<string, Language | null>();
 const warnings: string[] = [];
 let forcedFailure: string | undefined;
 let wasmReader: ((name: string) => Uint8Array | undefined) | undefined;
+let seaProbe: (() => SeaLike | undefined) | undefined;
+let initOverride: ((wasm: Uint8Array | undefined) => Promise<void>) | undefined;
 
 export function setWasmReaderForTests(
   reader: ((name: string) => Uint8Array | undefined) | undefined,
 ): void {
   wasmReader = reader;
+  resetTreesitterForTests();
+}
+
+export function setSeaProbeForTests(
+  probe: (() => SeaLike | undefined) | undefined,
+): void {
+  seaProbe = probe;
   resetTreesitterForTests();
 }
 
@@ -58,8 +70,18 @@ export function forceGrammarFailureForTests(message = "forced"): void {
   resetTreesitterForTests();
 }
 
+export function setParserInitForTests(
+  init: ((wasm: Uint8Array | undefined) => Promise<void>) | undefined,
+): void {
+  initOverride = init;
+  resetTreesitterForTests();
+}
+
 export function clearGrammarFailureForTests(): void {
   forcedFailure = undefined;
+  wasmReader = undefined;
+  seaProbe = undefined;
+  initOverride = undefined;
   resetTreesitterForTests();
 }
 
@@ -78,6 +100,12 @@ export function drainGrammarWarnings(): string[] {
 
 export function grammarReady(languageId: string): boolean {
   return languages.get(languageId) != null;
+}
+
+export function parserKind(
+  languageId: string,
+): "tree-sitter" | "regex-fallback" {
+  return grammarReady(languageId) ? "tree-sitter" : "regex-fallback";
 }
 
 export async function ensureTreesitter(): Promise<void> {
@@ -123,14 +151,18 @@ async function loadAll(): Promise<void> {
 
 async function initParser(): Promise<void> {
   const wasm = await readWasm("tree-sitter.wasm");
+  if (initOverride) {
+    await initOverride(wasm);
+    return;
+  }
   if (!wasm) {
     await Parser.init();
     return;
   }
-  const dest = join(tmpdir(), "kestrel-sea", "tree-sitter.wasm");
-  mkdirSync(join(tmpdir(), "kestrel-sea"), { recursive: true });
-  writeFileSync(dest, wasm);
-  await Parser.init({ locateFile: () => dest });
+  const init = Parser.init as (options?: {
+    wasmBinary?: Uint8Array;
+  }) => Promise<void>;
+  await init({ wasmBinary: wasm });
 }
 
 async function grammarBytes(spec: GrammarSpec): Promise<Uint8Array> {
@@ -149,16 +181,23 @@ async function readWasm(name: string): Promise<Uint8Array | undefined> {
 
 async function seaAsset(name: string): Promise<Uint8Array | undefined> {
   try {
-    const sea = moduleRequire()("node:sea") as {
-      isSea?: () => boolean;
-      getAsset?: (key: string) => ArrayBuffer;
-    };
-    if (!sea.isSea?.()) return undefined;
-    const asset = sea.getAsset?.(name);
-    return asset ? new Uint8Array(asset) : undefined;
+    const sea = seaProbe ? seaProbe() : nodeSea();
+    if (!sea?.isSea?.()) return undefined;
+    return bytesOf(sea.getAsset?.(name));
   } catch {
     return undefined;
   }
+}
+
+function nodeSea(): SeaLike | undefined {
+  const sea = moduleRequire()("node:sea") as SeaLike;
+  return sea;
+}
+
+function bytesOf(asset: unknown): Uint8Array | undefined {
+  if (asset instanceof Uint8Array) return new Uint8Array(asset);
+  if (asset instanceof ArrayBuffer) return new Uint8Array(asset);
+  return undefined;
 }
 
 export function parseLanguage(

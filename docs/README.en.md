@@ -5,7 +5,7 @@
 
 [中文](README.md) · Design docs (Chinese): [research](01-research.md) · [concept](02-concept.md) · [technical design](03-technical-design.md) · [architecture](04-architecture.md) · [implementation plan](05-implementation-plan.md) · [repo layout](06-repo-layout.md)
 
-> ⚠️ Status: 0.4.0 (P3) is implemented in this repository. These docs remain the design spec. Kestrel is a community project and is **not affiliated with TypeSafe AI**. Real reviews need a TypeSafe API key; access is governed by TypeSafe's own policy. The LLM narrator is off by default and reads `KESTREL_LLM_API_KEY`. To calibrate with a real Jev key, see [07-calibrate.en.md](07-calibrate.en.md).
+> ⚠️ Status: 0.4.0 (P3) is implemented in this repository. 0.4.1 loads tree-sitter inside the single-file binary. These docs remain the design spec. Kestrel is a community project and is **not affiliated with TypeSafe AI**. Real reviews need a TypeSafe API key; access is governed by TypeSafe's own policy. The LLM narrator is off by default and reads `KESTREL_LLM_API_KEY`. To calibrate with a real Jev key, see [07-calibrate.en.md](07-calibrate.en.md).
 
 ## Why Kestrel
 
