@@ -398,7 +398,7 @@ flowchart LR
 | Skill | `skills/kestrel/SKILL.md`（兼容 `npx skills add lpliu-art/kestrel`） | 宿主 Agent 读取 SKILL.md 后调用 CLI |
 | 插件/命令 | `plugins/kestrel/claude-code/commands/review.md`、`.claude-plugin/marketplace.json`；Codex/Cursor 清单（P2，格式待按官方规范核实） | `/kestrel:review` |
 | CI | 仓库根 `action.yml`（composite） | `uses: lpliu-art/kestrel@v1` |
-| 单二进制（0.4.1） | Node SEA。语法 wasm 打进资源；`doctor` 显示 `parser: tree-sitter` 或 `parser: regex-fallback` | 无 Node 环境时使用。规则 YAML 在二进制旁的 `payload/` |
+| 单二进制（0.4.2） | Node SEA。语法 wasm、内置规则 YAML、`package.json` 打进同一个文件；查看器页面编进程序 | 目录里只有这一个文件即可运行。项目配置和自定义规则仍从磁盘读取 |
 
 ## 8. 渲染说明
 

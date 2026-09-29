@@ -5,6 +5,7 @@ import { parse } from "yaml";
 import type { ResolvedConfig } from "../config/schema.ts";
 import type { KestrelPlugin } from "../plugins/api.ts";
 import { KestrelError } from "../util/errors.ts";
+import { readSeaText, SEA_PREFIX } from "../util/sea.ts";
 import { compileChecks } from "./checks.ts";
 import {
   DIMENSIONS,
@@ -28,8 +29,10 @@ export async function loadRules(
         continue;
       }
       if (!ref.path) continue;
-      const path = resolve(cwd, ref.path);
-      const text = await readFile(path, "utf8");
+      const path = ref.path.startsWith(SEA_PREFIX)
+        ? ref.path
+        : resolve(cwd, ref.path);
+      const text = await readPack(path);
       loaded.push(...parsePack(text, path, plugin.id, "builtin"));
     }
   }
@@ -43,6 +46,16 @@ export async function loadRules(
   }
   loaded.push(...compileChecks(config, config.warnings));
   return applyOverrides(loaded, config);
+}
+
+async function readPack(path: string): Promise<string> {
+  if (!path.startsWith(SEA_PREFIX)) return readFile(path, "utf8");
+  const key = path.slice(SEA_PREFIX.length);
+  const text = readSeaText(key);
+  if (text === undefined) {
+    throw new KestrelError(`Missing embedded rule pack ${key}`, 2, "config");
+  }
+  return text;
 }
 
 export function parsePack(

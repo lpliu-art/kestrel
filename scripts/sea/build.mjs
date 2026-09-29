@@ -2,8 +2,9 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   copyFileSync,
-  cpSync,
   mkdirSync,
+  readdirSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -81,6 +82,22 @@ for (const [name, path] of grammars) {
   assets[name] = dest;
   wasmBytes += statSync(path).size;
 }
+let ruleBytes = 0;
+const addRules = (dir, keyPrefix) => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const abs = join(dir, entry.name);
+    const key = `${keyPrefix}/${entry.name}`;
+    if (entry.isDirectory()) addRules(abs, key);
+    else if (entry.name.endsWith(".yml")) {
+      assets[key] = abs;
+      ruleBytes += statSync(abs).size;
+    }
+  }
+};
+addRules(join(root, "src", "plugins", "builtin"), "builtin");
+const packageJson = join(root, "package.json");
+assets["package.json"] = packageJson;
+ruleBytes += statSync(packageJson).size;
 
 const config = {
   main: join(outDir, "index.cjs"),
@@ -113,19 +130,9 @@ run("npx", [
     : []),
 ]);
 if (process.platform !== "win32") chmodSync(binary, 0o755);
-const payload = join(outDir, "payload");
-mkdirSync(payload, { recursive: true });
-copyFileSync(join(root, "package.json"), join(payload, "package.json"));
-cpSync(
-  join(root, "src", "plugins", "builtin"),
-  join(payload, "src", "plugins", "builtin"),
-  {
-    recursive: true,
-    filter: (source) => source.endsWith(".yml") || !source.includes("."),
-  },
-);
+rmSync(join(outDir, "payload"), { recursive: true, force: true });
 
 const version = run(binary, ["--version"], { stdio: "pipe", encoding: "utf8" });
 process.stdout.write(
-  `sea ${binary} ${version.stdout.trim()} binary=${statSync(binary).size} wasm=${wasmBytes}\n`,
+  `sea ${binary} ${version.stdout.trim()} binary=${statSync(binary).size} wasm=${wasmBytes} rules=${ruleBytes}\n`,
 );

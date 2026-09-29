@@ -1,23 +1,17 @@
 import { existsSync, readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-
-function moduleRequire(): NodeRequire {
-  const url = import.meta.url;
-  if (typeof url === "string" && url.length > 0) return createRequire(url);
-  return createRequire(process.execPath);
-}
+import {
+  builtinAssetKey,
+  readSeaText,
+  runningInSea,
+  SEA_PREFIX,
+} from "./sea.ts";
 
 let cachedRoot: string | undefined;
 
 export function packageRoot(): string {
   if (cachedRoot) return cachedRoot;
-  const packed = seaPayloadRoot();
-  if (packed) {
-    cachedRoot = packed;
-    return packed;
-  }
   let dir = dirname(fileURLToPath(import.meta.url));
   for (let i = 0; i < 8; i++) {
     const pkgPath = join(dir, "package.json");
@@ -42,6 +36,12 @@ export function packageRoot(): string {
 }
 
 export function toolVersion(): string {
+  if (runningInSea()) {
+    const embedded = readSeaText("package.json");
+    if (embedded) {
+      return (JSON.parse(embedded) as { version: string }).version;
+    }
+  }
   const pkg = JSON.parse(
     readFileSync(join(packageRoot(), "package.json"), "utf8"),
   ) as {
@@ -50,17 +50,8 @@ export function toolVersion(): string {
   return pkg.version;
 }
 
-function seaPayloadRoot(): string | undefined {
-  try {
-    const sea = moduleRequire()("node:sea") as { isSea?: () => boolean };
-    if (!sea.isSea?.()) return undefined;
-  } catch {
-    return undefined;
-  }
-  return join(dirname(process.execPath), "payload");
-}
-
 export function builtinRulePath(plugin: string, file: string): string {
+  if (runningInSea()) return `${SEA_PREFIX}${builtinAssetKey(plugin, file)}`;
   return join(
     packageRoot(),
     "src",

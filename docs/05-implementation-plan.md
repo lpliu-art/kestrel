@@ -145,7 +145,7 @@
 
 ## 4. P3 —— 评测、校准与形态
 
-> 状态：0.4.0 已在本仓库实现。内置标注集可离线用 mock 跑通；报告会标明这些数字不是 Jev 的数字，并且拒绝把 mock 提案写进画像阈值。AACR-Bench 许可证为 Apache-2.0，上游 JSON 只有提交指针、没有 diff，因此仓库不收录那 1.6MB 文件，只提供目录加载器和一份带 hunk 的样例。`--explore` 在技术方案 §3.10 标为 P3，不在下面的表里，本阶段一并实现。单二进制（0.4.1）：`node scripts/sea/build.mjs` 用 esbuild 把入口打成 CommonJS，并把 `import.meta.url` 换成可执行文件的 file URL，避免 web-tree-sitter 0.25 在空的 `import.meta.url` 上调用 `createRequire`。`tree-sitter.wasm` 与各语言语法 wasm 作为 SEA asset 打进二进制，运行时用 `node:sea` 的 `getAsset` 取出字节，交给 `Parser.init({ wasmBinary })` 和 `Language.load(Uint8Array)`。npm 包仍从 `node_modules` 加载 wasm。`kestrel doctor` 对每种已支持语言打印 `parser: tree-sitter` 或 `parser: regex-fallback`。内置规则 YAML 仍在二进制旁边的 `payload/`。Linux 可在本机验证；macOS / Windows 由 `.github/workflows/binaries.yml` 在对应系统上构建并做同样的冒烟检查。
+> 状态：0.4.0 已在本仓库实现。内置标注集可离线用 mock 跑通；报告会标明这些数字不是 Jev 的数字，并且拒绝把 mock 提案写进画像阈值。AACR-Bench 许可证为 Apache-2.0，上游 JSON 只有提交指针、没有 diff，因此仓库不收录那 1.6MB 文件，只提供目录加载器和一份带 hunk 的样例。`--explore` 在技术方案 §3.10 标为 P3，不在下面的表里，本阶段一并实现。单二进制（0.4.1）：`node scripts/sea/build.mjs` 用 esbuild 把入口打成 CommonJS，并把 `import.meta.url` 换成可执行文件的 file URL，避免 web-tree-sitter 0.25 在空的 `import.meta.url` 上调用 `createRequire`。`tree-sitter.wasm` 与各语言语法 wasm 作为 SEA asset 打进二进制，运行时用 `node:sea` 的 `getAsset` 取出字节，交给 `Parser.init({ wasmBinary })` 和 `Language.load(Uint8Array)`。npm 包仍从 `node_modules` 加载 wasm。`kestrel doctor` 对每种已支持语言打印 `parser: tree-sitter` 或 `parser: regex-fallback`。0.4.2 起内置规则 YAML 和 `package.json` 也作为 SEA asset 打进同一个文件，不再生成 `payload/`。查看器页面编进程序。用户的 `.kestrel.yml`、项目规则包和团队 checks 仍从磁盘读取，并覆盖同名内置规则。npm 包仍从磁盘读 wasm 和规则。Linux 可在本机把二进制单独放进空目录验证；macOS / Windows 由 `.github/workflows/binaries.yml` 做同样的冒烟检查。
 
 | # | 任务 | 验收标准 |
 |---|---|---|

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2
+
+The single-file binary embeds the builtin rule packs and `package.json`. It no longer reads a `payload/` directory next to the executable. User config, project rule packs, and team checks still load from disk and layer over the embedded builtins. The viewer page is compiled into the binary. The npm package still reads rule YAML from disk.
+
+Question compiler: no change. Existing rule questions are unchanged.
+
 ## 0.4.1
 
 The Node SEA binary embeds `tree-sitter.wasm` and the language grammars and reviews with syntax-level units. `kestrel doctor` prints `parser: tree-sitter (<language>)` when a grammar is loaded and `parser: regex-fallback (<language>)` when it is not. The npm package still loads grammars from `node_modules`.

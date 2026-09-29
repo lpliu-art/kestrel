@@ -5,7 +5,7 @@
 
 [中文](README.md) · [research](docs/01-research.md) · [concept](docs/02-concept.md) · [technical design](docs/03-technical-design.md) · [architecture](docs/04-architecture.md) · [implementation plan](docs/05-implementation-plan.md) · [layout](docs/06-repo-layout.md)
 
-> Status: 0.4.1 (P3). Kestrel is a community project and is **not affiliated with TypeSafe AI**. A real review needs `TYPESAFE_API_KEY`. Without a key, use `--provider mock`. Those results are not AI judgments. Mock calibration numbers are not Jev numbers.
+> Status: 0.4.2 (P3). Kestrel is a community project and is **not affiliated with TypeSafe AI**. A real review needs `TYPESAFE_API_KEY`. Without a key, use `--provider mock`. Those results are not AI judgments. Mock calibration numbers are not Jev numbers.
 
 ## Why Kestrel
 
@@ -123,7 +123,7 @@ This repository's dogfood workflow uses `version: local` and `allow_mock: true`,
 - Providers: `typesafe` (`@typesafe-ai/sdk` 0.6.0, model `jev-1.13.0`), `http`, `mock`, and `replay`. Tests and CI need no key and no network.
 - Outputs: terminal, JSON, SARIF 2.1.0, and Markdown. JSON findings include a `trace`. `explain` prints the questions, answers, and probabilities.
 - `doctor` checks Git, Node, the API key, model reachability (`GET /v1/models` when a key is set), the cache directory, and the parser for each supported language. A loaded grammar prints `parser: tree-sitter (<language>)`. A failed grammar prints `parser: regex-fallback (<language>)` and the command exits 1.
-- Single binary: `node scripts/sea/build.mjs` writes `dist/sea/kestrel` (`kestrel.exe` on Windows). `tree-sitter.wasm` and each language grammar are SEA assets. The binary initializes the parser from those bytes and builds syntax-level review units. It does not read wasm files next to the executable. The npm package still loads wasm from `node_modules`. Builtin rule YAML still ships in `payload/` beside the binary.
+- Single binary: `node scripts/sea/build.mjs` writes one file, `dist/sea/kestrel` (`kestrel.exe` on Windows). Grammar wasm, builtin rule YAML, and `package.json` are SEA assets. The binary runs `--version`, `doctor`, `rules`, `review`, and `view` from a directory that contains only that file. The viewer HTML, CSS, and JS are compiled into the program. The npm package still reads wasm and rule YAML from disk. A project's `.kestrel.yml`, `.kestrel/rules/`, and team checks still load from disk and override an embedded rule with the same id.
 - GitHub Action, pull-request comments (fingerprint dedupe, sticky summary), and SARIF filtering.
 - Agent skill: `skills/kestrel/SKILL.md`, plus Claude Code `review` and `explain` commands.
 
