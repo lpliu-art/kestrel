@@ -112,6 +112,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PLUGIN: ${{ inputs.plugin }}
+          PR_BODY: |
+            ## Summary
+
+            This pull request writes the balanced thresholds from a live Jev calibration into the builtin rule packs. Review the numbers before merging. Question text is unchanged.
+
+            Mock calibration cannot open this pull request.
+
+            ## Checklist
+
+            - [ ] English, single-judgment questions (no "and"/"or" combining two decisions)
+            - [ ] `npm test` passes with no API key and no network
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -134,16 +145,4 @@ jobs:
           fi
           git commit -m "Apply calibrated Jev thresholds"
           git push origin "HEAD:${branch}"
-          gh pr create --base main --head "$branch" --title "Apply calibrated Jev thresholds" --body "$(cat <<'EOF'
-## Summary
-
-This pull request writes the balanced thresholds from a live Jev calibration into the builtin rule packs. Review the numbers before merging. Question text is unchanged.
-
-Mock calibration cannot open this pull request.
-
-## Checklist
-
-- [ ] English, single-judgment questions (no "and"/"or" combining two decisions)
-- [ ] `npm test` passes with no API key and no network
-EOF
-)"
+          gh pr create --base main --head "$branch" --title "Apply calibrated Jev thresholds" --body "$PR_BODY"

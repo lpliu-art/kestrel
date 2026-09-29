@@ -44,9 +44,11 @@ jobs:
           tag="$RELEASE_TAG"
           node --experimental-strip-types scripts/release/verify-tag.ts "$tag"
           version="$(node -p "require('./package.json').version")"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+            echo "sha=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
       - name: Lint
         run: npm run lint
       - name: Typecheck
@@ -138,7 +140,7 @@ jobs:
             echo "No release binaries were downloaded."
             exit 1
           fi
-          sha256sum $(cat files.txt) | LC_ALL=C sort -k2 > SHA256SUMS
+          xargs -a files.txt sha256sum | LC_ALL=C sort -k2 > SHA256SUMS
           cd ..
           node --experimental-strip-types scripts/release/notes.ts "${{ needs.verify.outputs.version }}" > notes.md
       - name: GitHub Release
@@ -160,3 +162,25 @@ jobs:
             gh release create "$TAG" "${files[@]}" --title "$TAG" --notes-file notes.md
             echo "Created GitHub Release $TAG."
           fi
+      - name: Move major tag v0
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.verify.outputs.tag }}
+          SHA: ${{ needs.verify.outputs.sha }}
+        run: |
+          set -euo pipefail
+          case "$TAG" in
+            v0.*) ;;
+            *)
+              echo "Skipping major tag update for $TAG (expected v0.*)."
+              exit 0
+              ;;
+          esac
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v0" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/v0" \
+              -f sha="$SHA" -F force=true
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/v0" -f sha="$SHA"
+          fi
+          echo "Pointed v0 at $SHA ($TAG)."
