@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3
+
+Fix the Calibrate workflow YAML, lint workflows with actionlint, and publish a moving `v0` major tag from the Release workflow so `lpliu-art/kestrel@v0` resolves. Replace the npm README with a bilingual page, expand package.json search metadata, and bump the GitLab CI example to the current version. `kestrel auth set|status|clear` stores a Jev API key in the user credentials file (`0600` on POSIX); the first interactive run can ask once with hidden input and remember a skip. `doctor` reports whether the key comes from the env or the file. `kestrel rules list | head` no longer crashes on EPIPE.
+
+Question compiler: no change. Existing rule questions are unchanged.
+
 ## 0.4.2
 
 The single-file binary embeds the builtin rule packs and `package.json`. It no longer reads a `payload/` directory next to the executable. User config, project rule packs, and team checks still load from disk and layer over the embedded builtins. The viewer page is compiled into the binary. The npm package still reads rule YAML from disk.

@@ -8,8 +8,8 @@ description: >
 license: Apache-2.0
 compatibility: >
   Requires Node.js >= 22 and the `kestrel` CLI (`npm i -g kestrel-review` or `npx -y kestrel-review`).
-  Real reviews need TYPESAFE_API_KEY; without it, only `--provider mock` works and results are NOT AI judgments.
-metadata: { homepage: "https://github.com/lpliu-art/kestrel", version: "0.4.2" }
+  Real reviews need a Jev API key (`kestrel auth set` or TYPESAFE_API_KEY); without it, only `--provider mock` works and results are NOT AI judgments.
+metadata: { homepage: "https://github.com/lpliu-art/kestrel", version: "0.4.3" }
 ---
 
 # Kestrel review
@@ -23,7 +23,7 @@ Run exactly one of (do not pre-check installation; if `command not found`, use `
 Read `/tmp/kestrel.json` in full with a file-reading tool (never truncate with head/tail).
 
 ## Step 2 — Interpret
-- `provider.isAI == false` → tell the user results are MOCK, not AI judgments, and suggest setting TYPESAFE_API_KEY.
+- `provider.isAI == false` → tell the user results are MOCK, not AI judgments, and suggest `kestrel auth set` or setting `TYPESAFE_API_KEY`.
 - Use `findings` where `band == "report"`; mention `uncertain` only if the user asks for everything.
 - Each finding has `location.path/startLine`, `severity`, `probability`, a template `message`, `why`, and `fix.hint`.
   Kestrel does NOT generate prose: YOU explain the issue in context and propose the concrete fix.
@@ -40,7 +40,8 @@ If nothing remains: "Kestrel: no blocking issues in N files (model <provider.mod
 Fix critical/high items first; re-run Step 1 with the same target to confirm findings disappeared.
 
 ## Troubleshooting
-- Exit code 3: provider/auth error → ask the user to set TYPESAFE_API_KEY; never invent keys.
+- Exit code 3: provider/auth error → ask the user to run `kestrel auth set` or set `TYPESAFE_API_KEY`; never invent keys. `kestrel auth status` shows whether the key comes from the env or the credentials file (last 4 characters only).
+- On a first interactive run with no key, Kestrel may ask once for a key (hidden input). Empty Enter skips and continues in mock mode; that skip is remembered.
 - `kestrel explain <id> --report /tmp/kestrel.json` shows the Jev questions and probabilities behind a finding. `kestrel explain pr --report /tmp/kestrel.json` shows the pull-request conclusion.
 - Whole-file audit: `kestrel scan <paths> --provider mock` when there is no git diff. Incremental review: `kestrel review --incremental --from <base>`.
 - Calibration: `kestrel eval eval/internal/dataset.json --provider mock` is offline and is not a Jev measurement. A live run is `kestrel eval eval/internal/dataset.json --provider typesafe --calibrate` when `TYPESAFE_API_KEY` is set.

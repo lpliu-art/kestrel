@@ -8,5 +8,5 @@ kestrel:
   variables:
     GIT_DEPTH: "0"
   script:
-    - npx -y kestrel-review@0.3.0 review --from "$CI_MERGE_REQUEST_DIFF_BASE_SHA" --provider mock --format json --out kestrel.json --incremental
-    - npx -y kestrel-review@0.3.0 gitlab post --report kestrel.json --project "$CI_PROJECT_PATH" --mr "$CI_MERGE_REQUEST_IID"
+    - npx -y kestrel-review@0.4.3 review --from "$CI_MERGE_REQUEST_DIFF_BASE_SHA" --provider mock --format json --out kestrel.json --incremental
+    - npx -y kestrel-review@0.4.3 gitlab post --report kestrel.json --project "$CI_PROJECT_PATH" --mr "$CI_MERGE_REQUEST_IID"

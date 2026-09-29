@@ -1,7 +1,7 @@
 {
   "name": "kestrel-review",
-  "version": "0.4.2",
-  "description": "Fast, calibrated, plugin-based code review. Judgments from TypeSafe Jev; comments from rule templates.",
+  "version": "0.4.3",
+  "description": "AI code review CLI, GitHub Action & agent skill: calibrated, line-anchored findings from TypeSafe Jev for TS/JS, Python, Java, Go, Rust, C#. SARIF, PR gate. 多语言 AI 代码评审 / 代码审查",
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
@@ -71,17 +71,48 @@
     "type": "git",
     "url": "git+https://github.com/lpliu-art/kestrel.git"
   },
-  "homepage": "https://github.com/lpliu-art/kestrel",
+  "homepage": "https://github.com/lpliu-art/kestrel#readme",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
   },
   "keywords": [
     "code-review",
-    "kestrel",
-    "jev",
-    "typesafe",
+    "ai-code-review",
+    "ai-review",
+    "pr-review",
+    "pull-request",
+    "merge-request",
+    "code-quality",
+    "static-analysis",
+    "security",
+    "sarif",
+    "github-actions",
+    "gitlab",
     "cli",
-    "sarif"
-  ]
+    "ai",
+    "llm",
+    "agent-skill",
+    "claude-code",
+    "tree-sitter",
+    "typescript",
+    "javascript",
+    "python",
+    "java",
+    "golang",
+    "rust",
+    "csharp",
+    "react",
+    "vue",
+    "false-positives",
+    "calibration",
+    "jev",
+    "kestrel",
+    "代码评审",
+    "代码审查",
+    "静态分析"
+  ],
+  "bugs": {
+    "url": "https://github.com/lpliu-art/kestrel/issues"
+  }
 }
