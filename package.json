@@ -1,0 +1,73 @@
+{
+  "name": "kestrel-review",
+  "version": "0.1.0",
+  "description": "Fast, calibrated, plugin-based code review. Judgments from TypeSafe Jev; comments from rule templates.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "kestrel": "bin/kestrel.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "schemas/",
+    "skills/",
+    "plugins/",
+    "src/plugins/builtin/**/rules/*.yml",
+    "README.md",
+    "README.en.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin/index.d.ts",
+      "import": "./dist/plugin/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "schema": "node --experimental-strip-types src/schema/emit.ts"
+  },
+  "dependencies": {
+    "@typesafe-ai/sdk": "0.6.0",
+    "commander": "^15.0.0",
+    "picocolors": "^1.1.1",
+    "picomatch": "^4.0.3",
+    "yaml": "^2.6.1",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@types/node": "^22.15.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "vitest": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lpliu-art/kestrel.git"
+  },
+  "homepage": "https://github.com/lpliu-art/kestrel",
+  "keywords": [
+    "code-review",
+    "kestrel",
+    "jev",
+    "typesafe",
+    "cli",
+    "sarif"
+  ]
+}

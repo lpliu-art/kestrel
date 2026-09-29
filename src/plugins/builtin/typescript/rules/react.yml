@@ -1,0 +1,90 @@
+pack: typescript-react
+version: 1.0.0
+rules:
+  - id: react.hooks.conditional-call
+    title: { en: "Hook called conditionally", zh-CN: "在条件中调用 Hook" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [tsx, javascript, typescript]
+      frameworks: [react]
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'if\s*\([^)]*\)\s*\{[^}]*\buse(?:State|Effect|Memo|Callback|Ref|Id)\s*\('
+    question:
+      question: "Do the added lines in `hunk` call a React Hook inside a condition?"
+      focus: "Lines marked with + where useState or useEffect appears inside an if"
+      true: { what: "A Hook is called from inside a conditional block" }
+      false: { what: "Hooks are called unconditionally at the top of the component" }
+    severity:
+      levels: ["A hook behind a constant condition", "A hook whose call order can change"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls a Hook inside a condition, so the call order can change."
+        why: "React identifies Hook state by call order."
+      zh-CN:
+        body: "第 {{line}} 行在条件语句里调用了 Hook，调用顺序可能变化。"
+        why: "React 靠 Hook 的调用顺序对应状态。"
+    fix:
+      hint:
+        en: "Call the Hook unconditionally and branch inside it."
+        zh-CN: "无条件调用 Hook，把分支放进 Hook 内部。"
+    examples:
+      positive:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            if (ready) {
+              useEffect(() => {}, []);
+            }
+      negative:
+        - language: tsx
+          path: src/App.tsx
+          code: |
+            useEffect(() => {}, [ready]);
+
+  - id: react.list.index-key
+    title: { en: "List keyed by index", zh-CN: "用 index 作为列表 key" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [tsx, javascript]
+      frameworks: [react]
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'key=\{[^}]*\bindex\b'
+    question:
+      question: "Do the added lines in `hunk` use an array index as a React key for a list that can reorder?"
+      focus: "Lines marked with + that set key={index}"
+      true: { what: "A list item key is the array index" }
+      false: { what: "The key is a stable id" }
+    severity:
+      levels: ["A static list", "A list that can be reordered or filtered"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} uses the array index as a React key."
+        why: "Index keys break component state when the list is reordered."
+      zh-CN:
+        body: "第 {{line}} 行用数组下标作为 React key。"
+        why: "列表重排时，下标 key 会让组件状态串位。"
+    fix:
+      hint:
+        en: "Use a stable id from the item, such as key={item.id}."
+        zh-CN: "改用稳定 id，例如 key={item.id}。"
+    examples:
+      positive:
+        - language: tsx
+          path: src/List.tsx
+          code: |
+            items.map((item, index) => <li key={index}>{item}</li>);
+      negative:
+        - language: tsx
+          path: src/List.tsx
+          code: |
+            items.map((item) => <li key={item.id}>{item}</li>);

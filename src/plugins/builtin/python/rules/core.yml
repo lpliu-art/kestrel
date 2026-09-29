@@ -1,0 +1,284 @@
+pack: python-core
+version: 1.0.0
+rules:
+  - id: py.security.sql-format
+    title: { en: "SQL built with formatting", zh-CN: "用格式化拼接 SQL" }
+    category: security
+    dimension: security
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'execute\s*\(\s*f["'']|\.format\s*\('
+    question:
+      question: "Do the added lines in `hunk` build SQL with an f-string or str.format and pass it to execute?"
+      focus: "Lines marked with + that call execute with an f-string or format"
+      true: { what: "SQL text is built with interpolation and executed" }
+      false: { what: "Parameters are bound separately from a constant SQL string" }
+    severity:
+      levels: ["Constant SQL", "Internal values", "External values"]
+      map: [medium, high, critical]
+      default: high
+      min: medium
+    message:
+      en:
+        body: "Line {{line}} builds SQL with string formatting; this may allow SQL injection."
+        why: "The database parses the interpolated value as SQL."
+      zh-CN:
+        body: "第 {{line}} 行用字符串格式化构造 SQL，可能导致 SQL 注入。"
+        why: "数据库会把插值内容当作 SQL 解析。"
+    fix:
+      hint:
+        en: "Pass parameters separately, for example cursor.execute('SELECT * FROM t WHERE id=%s', (user_id,))."
+        zh-CN: "把参数分开传递，例如 cursor.execute('SELECT * FROM t WHERE id=%s', (user_id,))。"
+    references: ["CWE-89"]
+    examples:
+      positive:
+        - code: |
+            cursor.execute(f"SELECT * FROM t WHERE id={user_id}")
+      negative:
+        - code: |
+            cursor.execute("SELECT * FROM t WHERE id=%s", (user_id,))
+
+  - id: py.security.shell-true
+    title: { en: "subprocess with shell=True", zh-CN: "subprocess 使用 shell=True" }
+    category: security
+    dimension: security
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'subprocess\.\w+\([^)]*shell\s*=\s*True'
+    question:
+      question: "Do the added lines run a shell command built from a non-constant value with shell=True?"
+      focus: "Lines marked with + that call subprocess with shell=True"
+      true: { what: "A variable or concatenation is executed with shell=True" }
+      false: { what: "The command is an argument list without a shell" }
+    guards:
+      - id: quoted
+        question: "Is every non-constant part passed through shlex.quote before use in `hunk`?"
+    severity:
+      levels: ["Constant command", "Internal input", "External input"]
+      map: [low, medium, high]
+      default: high
+    mock:
+      guardPositive: 'shlex\.quote\s*\('
+    message:
+      en:
+        body: "Line {{line}} runs a command with shell=True; this may allow command injection."
+        why: "The shell interprets metacharacters in the command string."
+      zh-CN:
+        body: "第 {{line}} 行以 shell=True 执行命令，可能导致命令注入。"
+        why: "Shell 会解释命令字符串中的元字符。"
+    fix:
+      hint:
+        en: "Pass an argument list and leave shell at its default, for example subprocess.run(['ls', path])."
+        zh-CN: "改用参数数组，不要打开 shell，例如 subprocess.run(['ls', path])。"
+    references: ["CWE-78"]
+    examples:
+      positive:
+        - code: |
+            subprocess.run("ls " + path, shell=True)
+      negative:
+        - code: |
+            subprocess.run(["ls", path])
+
+  - id: py.security.unsafe-deserialization
+    title: { en: "Unsafe deserialization", zh-CN: "不安全的反序列化" }
+    category: security
+    dimension: security
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'pickle\.loads\s*\(|yaml\.load\s*\('
+    question:
+      question: "Do the added lines in `hunk` deserialize data with pickle.loads or yaml.load?"
+      focus: "Lines marked with + that call pickle.loads or yaml.load"
+      true: { what: "pickle.loads or yaml.load is called on data" }
+      false: { what: "A safe loader such as yaml.safe_load is used, or nothing is deserialized" }
+    severity:
+      levels: ["Trusted local data", "Data from another service", "Data from an untrusted user"]
+      map: [medium, high, critical]
+      default: high
+      min: medium
+    message:
+      en:
+        body: "Line {{line}} deserializes data with an unsafe loader."
+        why: "pickle and unsafe yaml.load can execute code while loading."
+      zh-CN:
+        body: "第 {{line}} 行使用了不安全的反序列化。"
+        why: "pickle 和未限制的 yaml.load 可以在加载时执行代码。"
+    fix:
+      hint:
+        en: "Use json.loads or yaml.safe_load, and avoid pickle for untrusted bytes."
+        zh-CN: "改用 json.loads 或 yaml.safe_load，不要对不可信字节使用 pickle。"
+    references: ["CWE-502"]
+    examples:
+      positive:
+        - code: |
+            return pickle.loads(data)
+      negative:
+        - code: |
+            return yaml.safe_load(data)
+
+  - id: py.security.path-traversal
+    title: { en: "Path built from user input", zh-CN: "用用户输入拼接路径" }
+    category: security
+    dimension: security
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'open\s*\(\s*[^)\n]*\+'
+    question:
+      question: "Do the added lines in `hunk` open a path built by concatenating a non-constant value?"
+      focus: "Lines marked with + that call open with a concatenated path"
+      true: { what: "A path passed to open contains a concatenated value" }
+      false: { what: "The path is a fixed location" }
+    severity:
+      levels: ["A path under a fixed directory", "A path that can escape the directory"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} opens a path built by concatenation; this may allow path traversal."
+        why: "Values such as ../ can escape the intended directory."
+      zh-CN:
+        body: "第 {{line}} 行打开了拼接出来的路径，可能导致路径穿越。"
+        why: "类似 ../ 的值可以逃出预期目录。"
+    fix:
+      hint:
+        en: "Resolve the path and check that it stays under a base directory."
+        zh-CN: "解析路径后确认它仍然位于基准目录之内。"
+    references: ["CWE-22"]
+    examples:
+      positive:
+        - code: |
+            open("/tmp/" + user_path)
+      negative:
+        - code: |
+            open(BASE / "readme.txt")
+
+  - id: py.correctness.mutable-default-arg
+    title: { en: "Mutable default argument", zh-CN: "可变默认参数" }
+    category: correctness
+    dimension: correctness
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'def\s+\w+\s*\([^)]*=\s*(?:\[\]|\{\}|set\(\)|dict\(\))'
+    question:
+      question: "Do the added lines in `hunk` use a mutable object as a default argument?"
+      focus: "Lines marked with + that define a function with a list, dict, or set default"
+      true: { what: "A function default is a list, dict, or set literal" }
+      false: { what: "The default is None or another immutable value" }
+    severity:
+      levels: ["A function that is called once", "A function whose default is shared across calls"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} uses a mutable default argument, which is shared across calls."
+        why: "Python evaluates default arguments once, so later calls see earlier mutations."
+      zh-CN:
+        body: "第 {{line}} 行使用了可变默认参数，多次调用会共享同一个对象。"
+        why: "Python 只在定义时计算一次默认值，后续调用会看到之前的修改。"
+    fix:
+      hint:
+        en: "Use None as the default and create the list or dict inside the function."
+        zh-CN: "默认值改成 None，在函数体内再创建 list 或 dict。"
+    examples:
+      positive:
+        - code: |
+            def add(item, bucket=[]):
+                bucket.append(item)
+      negative:
+        - code: |
+            def add(item, bucket=None):
+                if bucket is None:
+                    bucket = []
+
+  - id: py.reliability.broad-except-swallow
+    title: { en: "Broad except that swallows", zh-CN: "过宽的 except 吞掉异常" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'except(?:\s+Exception|\s+BaseException)?\s*:\s*(?:\n\s*)?pass\b'
+    question:
+      question: "Do the added lines in `hunk` catch Exception or a bare except and then pass?"
+      focus: "Lines marked with + that contain except followed by pass"
+      true: { what: "An except block discards the error with pass" }
+      false: { what: "The except re-raises or handles a specific error" }
+    severity:
+      levels: ["A narrow cleanup", "A broad except that hides failures"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} catches a broad exception and ignores it."
+        why: "pass hides failures, including ones the caller needed to see."
+      zh-CN:
+        body: "第 {{line}} 行用过宽的 except 捕获异常后直接 pass。"
+        why: "pass 会藏起调用方需要看到的失败。"
+    fix:
+      hint:
+        en: "Catch a specific exception type, or log and re-raise."
+        zh-CN: "捕获具体异常类型，或者记录后重新抛出。"
+    examples:
+      positive:
+        - code: |
+            try:
+                run()
+            except Exception:
+                pass
+      negative:
+        - code: |
+            try:
+                run()
+            except Exception:
+                raise
+
+  - id: py.async.blocking-in-async
+    title: { en: "Blocking call in async function", zh-CN: "async 函数中的阻塞调用" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [python] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '(?:time\.sleep|requests\.(?:get|post|put|delete|patch))\s*\('
+    context: [hunk, enclosing]
+    question:
+      question: "Do the added lines in `hunk` call a blocking function such as time.sleep or requests inside an async function visible in `enclosing`?"
+      focus: "Lines marked with + that call time.sleep or requests"
+      true: { what: "A blocking call sits inside an async def" }
+      false: { what: "The call is awaited via an async API, or it is not inside async def" }
+    severity:
+      levels: ["A script that is not on a server", "A request handler that blocks the event loop"]
+      map: [low, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls a blocking API that can stall the event loop."
+        why: "time.sleep and requests do not yield, so other tasks wait."
+      zh-CN:
+        body: "第 {{line}} 行调用了会卡住事件循环的阻塞 API。"
+        why: "time.sleep 和 requests 不会让出控制权，其他任务只能等待。"
+    fix:
+      hint:
+        en: "Use asyncio.sleep or an async HTTP client."
+        zh-CN: "改用 asyncio.sleep 或异步 HTTP 客户端。"
+    examples:
+      positive:
+        - code: |
+            async def handler():
+                time.sleep(1)
+      negative:
+        - code: |
+            async def handler():
+                await asyncio.sleep(1)

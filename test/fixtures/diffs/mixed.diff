@@ -1,0 +1,24 @@
+diff --git a/old.ts b/new.ts
+similarity index 90%
+rename from old.ts
+rename to new.ts
+index 1111111..2222222 100644
+--- a/old.ts
++++ b/new.ts
+@@ -1 +1 @@
+-const a = 1;
++const a = 2;
+diff --git a/blob.bin b/blob.bin
+new file mode 100644
+index 0000000..1111111
+Binary files /dev/null and b/blob.bin differ
+diff --git a/script.sh b/script.sh
+old mode 100644
+new mode 100755
+diff --git a/gone.ts b/gone.ts
+deleted file mode 100644
+index 3333333..0000000
+--- a/gone.ts
++++ /dev/null
+@@ -1 +0,0 @@
+-export const gone = true;
