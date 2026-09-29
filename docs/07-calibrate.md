@@ -18,6 +18,36 @@ kestrel eval eval/internal/dataset.json --provider typesafe --calibrate --out ca
 
 报告第一行会写明这是 live Jev。只有这时 `--apply` 才会把提案标成已应用。把建议阈值抄进团队配置之前，先看模型版本是不是锁定的 `jev-x.y.z`。
 
+## GitHub Actions
+
+仓库里的 `.github/workflows/calibrate.yml` 只在手动触发时运行。密钥放在仓库 Actions secret `TYPESAFE_API_KEY` 里，不要写进命令行。workflow 缺这个 secret 时会立刻失败，并且不会打印它的值。
+
+Actions → Calibrate → Run workflow：
+
+| 输入 | 默认 | 作用 |
+| --- | --- | --- |
+| `dataset` | `eval/internal/dataset.json` | 标注集路径 |
+| `plugin` | 空 | 只跑一个内置插件：`core`、`typescript`、`python`、`java`、`go`、`rust`、`csharp` |
+| `max_requests` | `500` | 案例数超过它就拒绝启动；运行中达到这个请求数也停止 |
+| `budget_tokens` | `2000000` | 输入 token 上限 |
+| `open_pr` | 关 | 把 balanced 建议阈值写进内置规则包并开一个 PR。mock 报告不会写 |
+
+跑完后，JSON 和 Markdown 报告在 artifact `calibration-report` 里，Markdown 也写进 job summary。
+
+本地用 mock 检查同一条脚本（不访问网络）：
+
+```bash
+npm run build
+node --experimental-strip-types scripts/calibrate.ts \
+  --dataset eval/internal/dataset.json \
+  --provider mock \
+  --max-requests 500 \
+  --budget-tokens 2000000 \
+  --out-dir calibration
+```
+
+`--apply-thresholds` 在 mock 报告上会拒绝写规则。
+
 离线对照（不会访问网络）：
 
 ```bash

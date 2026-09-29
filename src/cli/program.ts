@@ -609,6 +609,13 @@ program
     "--apply",
     "Record a live proposal as applied. Mock runs refuse to change thresholds.",
   )
+  .option("--plugin <id>", "Score one builtin plugin")
+  .option("--budget-tokens <n>", "Input-token budget", parseIntArg)
+  .option(
+    "--max-requests <n>",
+    "Stop after this many Jev requests",
+    parseIntArg,
+  )
   .option("--out <file>", "Write the JSON report")
   .action(async (dataset: string, opts: Record<string, unknown>) => {
     const provider = opts.provider as ReviewOptions["provider"] | undefined;
@@ -623,6 +630,9 @@ program
       env: process.env,
       calibrate: Boolean(opts.calibrate),
       apply: Boolean(opts.apply),
+      plugin: opts.plugin as string | undefined,
+      budgetTokens: opts.budgetTokens as number | undefined,
+      maxRequests: opts.maxRequests as number | undefined,
     });
     const text = renderEval(report);
     process.stdout.write(text);

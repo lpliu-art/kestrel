@@ -72,6 +72,10 @@
     "url": "git+https://github.com/lpliu-art/kestrel.git"
   },
   "homepage": "https://github.com/lpliu-art/kestrel",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "keywords": [
     "code-review",
     "kestrel",

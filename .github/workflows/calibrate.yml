@@ -1,0 +1,149 @@
+name: Calibrate
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset:
+        description: Dataset path
+        required: false
+        default: eval/internal/dataset.json
+        type: string
+      plugin:
+        description: Optional builtin plugin id (core, typescript, python, java, go, rust, csharp)
+        required: false
+        default: ""
+        type: string
+      max_requests:
+        description: Maximum Jev requests. The run refuses to start when the dataset has more cases than this, and stops if the cap is reached.
+        required: false
+        default: "500"
+        type: string
+      budget_tokens:
+        description: Maximum input tokens for the run
+        required: false
+        default: "2000000"
+        type: string
+      open_pr:
+        description: Open a pull request that writes the balanced thresholds into builtin rule packs
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require TYPESAFE_API_KEY
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+        run: |
+          if [ -z "${TYPESAFE_API_KEY:-}" ]; then
+            echo "::error::TYPESAFE_API_KEY is missing. Add it as a repository Actions secret named TYPESAFE_API_KEY. This step does not print the secret."
+            exit 1
+          fi
+          echo "::add-mask::${TYPESAFE_API_KEY}"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Calibrate
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          DATASET: ${{ inputs.dataset }}
+          PLUGIN: ${{ inputs.plugin }}
+          MAX_REQUESTS: ${{ inputs.max_requests }}
+          BUDGET_TOKENS: ${{ inputs.budget_tokens }}
+        run: |
+          set -euo pipefail
+          args=(
+            --experimental-strip-types
+            scripts/calibrate.ts
+            --dataset "$DATASET"
+            --provider typesafe
+            --max-requests "$MAX_REQUESTS"
+            --budget-tokens "$BUDGET_TOKENS"
+            --out-dir calibration
+          )
+          if [ -n "$PLUGIN" ]; then
+            args+=(--plugin "$PLUGIN")
+          fi
+          node "${args[@]}"
+      - name: Step summary
+        run: cat calibration/calibration.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: calibration-report
+          path: |
+            calibration/calibration.json
+            calibration/calibration.md
+          if-no-files-found: error
+
+  open-pr:
+    needs: calibrate
+    if: inputs.open_pr
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: calibration-report
+          path: calibration
+      - name: Apply thresholds and open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLUGIN: ${{ inputs.plugin }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="calibrate/thresholds-${GITHUB_RUN_ID}"
+          git checkout -B "$branch"
+          args=(
+            --experimental-strip-types
+            scripts/apply-thresholds.ts
+            --report calibration/calibration.json
+          )
+          if [ -n "$PLUGIN" ]; then
+            args+=(--plugin "$PLUGIN")
+          fi
+          node "${args[@]}"
+          git add src/plugins/builtin
+          if git diff --cached --quiet; then
+            echo "No threshold changes. Skipping the pull request."
+            exit 0
+          fi
+          git commit -m "Apply calibrated Jev thresholds"
+          git push origin "HEAD:${branch}"
+          gh pr create --base main --head "$branch" --title "Apply calibrated Jev thresholds" --body "$(cat <<'EOF'
+## Summary
+
+This pull request writes the balanced thresholds from a live Jev calibration into the builtin rule packs. Review the numbers before merging. Question text is unchanged.
+
+Mock calibration cannot open this pull request.
+
+## Checklist
+
+- [ ] English, single-judgment questions (no "and"/"or" combining two decisions)
+- [ ] `npm test` passes with no API key and no network
+EOF
+)"

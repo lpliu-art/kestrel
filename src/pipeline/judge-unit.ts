@@ -1,5 +1,5 @@
 import type { ProfileName } from "../config/schema.ts";
-import type { BudgetGuard } from "../jev/budget.ts";
+import type { BudgetGuard, RequestGuard } from "../jev/budget.ts";
 import { estimateRequestTokens } from "../jev/tokens.ts";
 import type { JevAnswer, JevProvider, JevRequest } from "../jev/types.ts";
 import {
@@ -19,7 +19,7 @@ import {
 } from "../security/injection.ts";
 import { redactText } from "../security/redact.ts";
 import type { ReviewUnit } from "../units/build.ts";
-import { isKestrelError } from "../util/errors.ts";
+import { isKestrelError, KestrelError } from "../util/errors.ts";
 import type { JsonValue } from "../util/json.ts";
 import { clampSeverity } from "../util/severity.ts";
 import { questionsForPass, requestsFor } from "./questions.ts";
@@ -54,6 +54,7 @@ export async function judgeUnit(input: {
   state: JsonValue;
   provider: JevProvider;
   budget: BudgetGuard;
+  requests?: RequestGuard;
   model: string;
   profile: ProfileName;
   language: "zh-CN" | "en";
@@ -213,6 +214,7 @@ async function askRequests(
   input: {
     provider: JevProvider;
     budget: BudgetGuard;
+    requests?: RequestGuard;
     warnings: string[];
     unit: ReviewUnit;
     onRateLimit?: () => void;
@@ -231,6 +233,16 @@ async function askRequests(
     const estimate = estimateRequestTokens(request.state, request.questions);
     if (!input.budget.canSpend(estimate))
       return sawSuccess ? { answers, model } : "budget";
+    if (input.requests) {
+      if (!input.requests.canSend()) {
+        throw new KestrelError(
+          `max-requests ${input.requests.max} reached`,
+          2,
+          "usage",
+        );
+      }
+      input.requests.spend();
+    }
     try {
       const started = Date.now();
       const response = await input.provider.ask(request);

@@ -11,3 +11,18 @@ export class BudgetGuard {
     this.spent += tokens;
   }
 }
+
+/** Caps how many provider calls a run may make. The check is synchronous. */
+export class RequestGuard {
+  sent = 0;
+
+  constructor(readonly max: number) {}
+
+  canSend(): boolean {
+    return this.sent < this.max;
+  }
+
+  spend(): void {
+    this.sent += 1;
+  }
+}
