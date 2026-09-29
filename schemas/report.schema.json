@@ -1,0 +1,634 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "const": "kestrel"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "provider": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "isAI": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "model",
+        "isAI"
+      ],
+      "additionalProperties": false
+    },
+    "run": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "workspace",
+            "staged",
+            "commit",
+            "range",
+            "snippet"
+          ]
+        },
+        "base": {
+          "type": "string"
+        },
+        "head": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial"
+          ]
+        },
+        "requests": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cachedRequests": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tokens": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "number",
+              "minimum": 0
+            },
+            "output": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "input",
+            "output"
+          ],
+          "additionalProperties": false
+        },
+        "costUSD": {
+          "type": "number",
+          "minimum": 0
+        },
+        "profile": {
+          "type": "string",
+          "enum": [
+            "chill",
+            "balanced",
+            "assertive"
+          ]
+        },
+        "language": {
+          "type": "string",
+          "enum": [
+            "zh-CN",
+            "en"
+          ]
+        }
+      },
+      "required": [
+        "mode",
+        "startedAt",
+        "durationMs",
+        "status",
+        "requests",
+        "cachedRequests",
+        "tokens",
+        "costUSD",
+        "profile",
+        "language"
+      ],
+      "additionalProperties": false
+    },
+    "verdict": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": [
+            "approve",
+            "comment",
+            "request_changes"
+          ]
+        },
+        "blocking": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "decision",
+        "blocking",
+        "reasons"
+      ],
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "filesChanged": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "filesReviewed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "units": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "findings": {
+          "type": "object",
+          "properties": {
+            "report": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "uncertain": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "report",
+            "uncertain"
+          ],
+          "additionalProperties": false
+        },
+        "bySeverity": {
+          "type": "object",
+          "properties": {
+            "low": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "medium": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "high": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "critical": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "filesChanged",
+        "filesReviewed",
+        "units",
+        "findings",
+        "bySeverity"
+      ],
+      "additionalProperties": false
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "ruleId": {
+            "type": "string"
+          },
+          "pluginId": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "rule",
+              "deterministic"
+            ]
+          },
+          "category": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "band": {
+            "type": "string",
+            "enum": [
+              "report",
+              "uncertain"
+            ]
+          },
+          "probability": {
+            "type": "number"
+          },
+          "pEff": {
+            "type": "number"
+          },
+          "guards": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "severityScore": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number"
+              },
+              "confidence": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "score",
+              "confidence"
+            ],
+            "additionalProperties": false
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "startLine": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "endLine": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "anchor": {
+                "type": "string",
+                "enum": [
+                  "trigger",
+                  "choice",
+                  "unit"
+                ]
+              },
+              "uncertain": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "path",
+              "startLine",
+              "endLine",
+              "anchor",
+              "uncertain"
+            ],
+            "additionalProperties": false
+          },
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          },
+          "fix": {
+            "type": "object",
+            "properties": {
+              "hint": {
+                "type": "string"
+              },
+              "suggestion": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "hint",
+              "suggestion"
+            ],
+            "additionalProperties": false
+          },
+          "llm": {
+            "type": "null"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "relatedRuleIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "snippet": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fingerprint",
+          "ruleId",
+          "pluginId",
+          "source",
+          "category",
+          "severity",
+          "band",
+          "probability",
+          "pEff",
+          "guards",
+          "severityScore",
+          "location",
+          "title",
+          "message",
+          "why",
+          "fix",
+          "llm",
+          "references",
+          "relatedRuleIds",
+          "snippet"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "risk": {
+            "type": "number"
+          },
+          "units": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "path",
+          "language",
+          "risk",
+          "units"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "unitId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "properties": {
+        "deepReview": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "risk": {
+                "type": "number"
+              },
+              "dimensions": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "number"
+                }
+              }
+            },
+            "required": [
+              "path",
+              "risk",
+              "dimensions"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "deepReview"
+      ],
+      "additionalProperties": false
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "preview": {
+      "type": "object",
+      "properties": {
+        "estimatedTokens": {
+          "type": "number",
+          "minimum": 0
+        },
+        "estimatedCostUSD": {
+          "type": "number",
+          "minimum": 0
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "review",
+                  "skip"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              },
+              "addedLines": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "units": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "path",
+              "decision",
+              "addedLines",
+              "units"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "payloads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "unitId": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "state": {},
+              "questions": {},
+              "tokens": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "unitId",
+              "path",
+              "state",
+              "questions",
+              "tokens"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "estimatedTokens",
+        "estimatedCostUSD",
+        "files"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tool",
+    "provider",
+    "run",
+    "verdict",
+    "summary",
+    "findings",
+    "files",
+    "skipped",
+    "handoff",
+    "warnings"
+  ],
+  "additionalProperties": false
+}

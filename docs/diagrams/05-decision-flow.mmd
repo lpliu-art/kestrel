@@ -1,0 +1,22 @@
+flowchart TD
+    A["Rule triggered on unit"] --> B["Pass 1 answers:<br/>p = r.rule (Noul)<br/>g_i = guards (Noul)<br/>s = severity (Score)"]
+    B --> C["p_eff = p × Π (1 − g_i)^w_i"]
+    C --> D{"p_eff ≥ τ_report?"}
+    D -- yes --> E["band = report"]
+    D -- no --> F{"p_eff ≥ τ_uncertain?"}
+    F -- yes --> G["band = uncertain"]
+    F -- no --> H["drop (kept in session log)"]
+    E --> I{"deterministic anchor?"}
+    G --> I
+    I -- yes --> K["anchor = trigger line"]
+    I -- no --> J["Pass 2: loc Choice over real line ids + none"]
+    J --> L{"choice ≠ none and confidence ≥ 0.5?"}
+    L -- yes --> K2["anchor = chosen line"]
+    L -- no --> M["anchor = unit (first added line)<br/>'location uncertain'"]
+    K --> N["severity = map(round(s.score))<br/>(score confidence < 0.4 → default)<br/>clamp(min,max)"]
+    K2 --> N
+    M --> N
+    N --> O["render template (i18n) → Finding"]
+    O --> P{"band = report and severity ≥ gate.failOn<br/>and p_eff ≥ gate.minProbability?"}
+    P -- yes --> Q["blocking → verdict request_changes"]
+    P -- no --> R["non-blocking → verdict comment/approve"]

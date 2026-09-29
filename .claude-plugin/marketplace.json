@@ -1,0 +1,10 @@
+{
+  "name": "kestrel",
+  "plugins": [
+    {
+      "name": "kestrel",
+      "source": "./plugins/kestrel/claude-code",
+      "description": "Kestrel Review commands for Claude Code."
+    }
+  ]
+}

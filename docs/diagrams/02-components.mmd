@@ -1,0 +1,75 @@
+flowchart TB
+    subgraph CLI["cli/"]
+        cmdReview["review"]
+        cmdRules["rules list/show/check/test/lint"]
+        cmdExplain["explain"]
+        cmdGh["github post"]
+        cmdDoctor["doctor · config · cache"]
+    end
+
+    subgraph Core["Deterministic core"]
+        cfg["config/<br/>layered loader + zod schema"]
+        gitm["git/<br/>DiffProvider + unified diff parser"]
+        sel["select/<br/>6+ file gates · preview"]
+        lang["lang/<br/>language detection"]
+        units["units/<br/>hunk windows · context · state serializer"]
+        sec["security/<br/>secret redaction · injection probe · untrusted mode"]
+    end
+
+    subgraph Plug["plugins/"]
+        reg["Plugin registry + loader<br/>(explicit list, apiVersion check)"]
+        pcore["core"]
+        pts["typescript<br/>(+react, +vue packs)"]
+        ppy["python"]
+        pjava["java"]
+        pgo["go"]
+        p3["3rd-party<br/>kestrel-plugin-*"]
+    end
+
+    subgraph Rules["rules/"]
+        rload["rule packs (YAML)<br/>layering & overrides"]
+        trig["trigger engine<br/>regex · tree-sitter · always · removed · sarif"]
+        comp["question compiler<br/>rule → Noul / Score / Choice"]
+        tmpl["template renderer<br/>i18n zh-CN / en"]
+    end
+
+    subgraph Jev["jev/"]
+        budget["BudgetGuard"]
+        cache["Cache<br/>(pinned model only)"]
+        limiter["RateLimiter<br/>RPM + tok/s"]
+        prov{{"JevProvider"}}
+        pTS["TypeSafeProvider<br/>(@typesafe-ai/sdk)"]
+        pHttp["HttpProvider"]
+        pMock["MockProvider"]
+        pReplay["Replay / Recording"]
+    end
+
+    subgraph Judge["judge/"]
+        pass1["Pass 1: screen"]
+        pass2["Pass 2: locate & slots"]
+        sfilter["static finding filter (P1)"]
+        decide["bands · dedupe · risk · verdict"]
+    end
+
+    narr["narrate/ (P2)<br/>LLM narrator + Jev verification"]
+    render["render/<br/>terminal · json · sarif · markdown · github"]
+    report["report/<br/>schema · session log"]
+    ghm["github/<br/>review poster · fingerprints"]
+
+    cmdReview --> cfg --> gitm --> sel --> lang --> units
+    lang --> reg
+    reg --> pcore & pts & ppy & pjava & pgo & p3
+    reg --> rload --> trig
+    units --> sec
+    units --> trig --> comp --> pass1
+    pass1 --> budget --> cache --> limiter --> prov
+    prov --> pTS & pHttp & pMock & pReplay
+    pass1 --> pass2 --> decide
+    sfilter --> decide
+    decide --> narr --> render
+    decide --> render
+    tmpl --> render
+    render --> report
+    cmdGh --> ghm
+    cmdRules --> rload
+    cmdExplain --> report

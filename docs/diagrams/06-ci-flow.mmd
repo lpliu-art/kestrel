@@ -1,0 +1,11 @@
+flowchart LR
+    ev["pull_request event"] --> co["checkout (fetch-depth: 0)"]
+    co --> key{"TYPESAFE_API_KEY<br/>available?"}
+    key -- no --> skip["skip with warning<br/>(or mock if allow_mock)"]
+    key -- yes --> rv["npx kestrel-review review --from origin/BASE<br/>--untrusted → json + sarif + markdown"]
+    rv --> sum["job summary ← kestrel.md"]
+    rv --> post["kestrel github post<br/>inline comments (new fingerprints only)<br/>+ sticky summary"]
+    rv --> sarif["upload-sarif → Code Scanning"]
+    rv --> gate{"gate failed?<br/>(exit 1)"}
+    gate -- yes --> red["❌ check fails"]
+    gate -- no --> green["✅ check passes"]

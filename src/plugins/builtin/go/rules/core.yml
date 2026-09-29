@@ -1,0 +1,249 @@
+pack: go-core
+version: 1.0.0
+rules:
+  - id: go.errors.ignored
+    title: { en: "Ignored error", zh-CN: "被忽略的 error" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: ',\s*_\s*:?='
+    question:
+      question: "Do the added lines in `hunk` discard a returned error with a blank identifier?"
+      focus: "Lines marked with + that assign an error to _"
+      true: { what: "An error return is assigned to _" }
+      false: { what: "The error is stored and checked" }
+    severity:
+      levels: ["A close on a best-effort path", "An error that changes control flow"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} discards a returned error."
+        why: "The caller cannot tell that the operation failed."
+      zh-CN:
+        body: "第 {{line}} 行丢弃了返回的 error。"
+        why: "调用方无法知道操作已经失败。"
+    fix:
+      hint:
+        en: "Assign the error and return it, or handle it before continuing."
+        zh-CN: "把 error 赋给变量并返回，或者处理完再继续。"
+    examples:
+      positive:
+        - code: |
+            data, _ := os.ReadFile(path)
+      negative:
+        - code: |
+            data, err := os.ReadFile(path)
+            if err != nil { return err }
+
+  - id: go.http.body-not-closed
+    title: { en: "HTTP body not closed", zh-CN: "没有关闭 HTTP body" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'http\.(?:Get|Post|Head|Do)\s*\('
+    question:
+      question: "Do the added lines in `hunk` perform an HTTP call without closing the response body?"
+      focus: "Lines marked with + that call http.Get, http.Post, or http.Do"
+      true: { what: "An HTTP response is used without closing Body" }
+      false: { what: "resp.Body.Close is deferred or called" }
+    severity:
+      levels: ["A one-shot command", "A server that repeats the call"]
+      map: [medium, high]
+      default: high
+    mock:
+      negative: 'Body\.Close\s*\('
+    message:
+      en:
+        body: "Line {{line}} performs an HTTP call without closing the response body."
+        why: "Leaving Body open leaks connections."
+      zh-CN:
+        body: "第 {{line}} 行发起了 HTTP 调用，但没有关闭响应体。"
+        why: "不关闭 Body 会泄漏连接。"
+    fix:
+      hint:
+        en: "Defer resp.Body.Close() after checking the error from the call."
+        zh-CN: "在检查调用错误之后 defer resp.Body.Close()。"
+    examples:
+      positive:
+        - code: |
+            resp, err := http.Get(url)
+            if err != nil { return err }
+            io.Copy(w, resp.Body)
+      negative:
+        - code: |
+            resp, err := http.Get(url)
+            if err != nil { return err }
+            defer resp.Body.Close()
+            io.Copy(w, resp.Body)
+
+  - id: go.defer.in-loop
+    title: { en: "defer inside a loop", zh-CN: "循环中的 defer" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'for\s+[^{]*\{[\s\S]*?\bdefer\s+'
+    question:
+      question: "Do the added lines in `hunk` defer a call inside a loop?"
+      focus: "Lines marked with + where defer appears inside for"
+      true: { what: "defer is inside a for loop" }
+      false: { what: "Resources are closed inside the loop without defer" }
+    severity:
+      levels: ["A loop that runs a few times", "A loop that can run without bound"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} uses defer inside a loop, so resources stay open until the function returns."
+        why: "defer runs at function exit, not at the end of the iteration."
+      zh-CN:
+        body: "第 {{line}} 行在循环里使用 defer，资源会一直留到函数返回。"
+        why: "defer 在函数退出时才执行，不是在每一轮循环结束时。"
+    fix:
+      hint:
+        en: "Close the resource at the end of the iteration, or move the loop body into a function."
+        zh-CN: "在本轮循环结束时关闭资源，或把循环体抽成函数。"
+    examples:
+      positive:
+        - code: |
+            for _, f := range files {
+              defer f.Close()
+            }
+      negative:
+        - code: |
+            for _, f := range files {
+              f.Close()
+            }
+
+  - id: go.context.cancel-not-called
+    title: { en: "Context cancel not called", zh-CN: "没有调用 context cancel" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'context\.With(?:Cancel|Timeout|Deadline)\s*\('
+    question:
+      question: "Do the added lines in `hunk` create a cancelable context without calling cancel?"
+      focus: "Lines marked with + that call WithCancel, WithTimeout, or WithDeadline"
+      true: { what: "A cancel function is created and not called" }
+      false: { what: "cancel is deferred or called" }
+    severity:
+      levels: ["A process that exits immediately", "A server request that retains the context"]
+      map: [medium, high]
+      default: high
+    mock:
+      negative: '\bcancel\s*\('
+    message:
+      en:
+        body: "Line {{line}} creates a context and does not call cancel."
+        why: "Until cancel runs, the parent retains the child context."
+      zh-CN:
+        body: "第 {{line}} 行创建了 context，但没有调用 cancel。"
+        why: "在调用 cancel 之前，父 context 会一直保留这个子 context。"
+    fix:
+      hint:
+        en: "Defer cancel() immediately after the WithTimeout or WithCancel call."
+        zh-CN: "在 WithTimeout 或 WithCancel 之后立刻 defer cancel()。"
+    examples:
+      positive:
+        - code: |
+            ctx, cancel := context.WithTimeout(ctx, time.Second)
+            do(ctx)
+      negative:
+        - code: |
+            ctx, cancel := context.WithTimeout(ctx, time.Second)
+            defer cancel()
+            do(ctx)
+
+  - id: go.sql.rows-err-unchecked
+    title: { en: "rows.Err not checked", zh-CN: "没有检查 rows.Err" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'rows\.Next\s*\('
+    question:
+      question: "Do the added lines in `hunk` iterate sql.Rows with Next without checking rows.Err?"
+      focus: "Lines marked with + that call rows.Next"
+      true: { what: "rows.Next is used and rows.Err is not checked" }
+      false: { what: "rows.Err is checked after the loop" }
+    severity:
+      levels: ["A query that cannot fail mid-iteration", "A query whose iteration error is ignored"]
+      map: [low, medium]
+      default: medium
+    mock:
+      negative: 'rows\.Err\s*\('
+    message:
+      en:
+        body: "Line {{line}} iterates rows without checking rows.Err()."
+        why: "Next stops on an error, and that error is only visible through rows.Err."
+      zh-CN:
+        body: "第 {{line}} 行遍历 rows 之后没有检查 rows.Err()。"
+        why: "Next 遇到错误会停下来，这个错误只能通过 rows.Err 看到。"
+    fix:
+      hint:
+        en: "After the loop, return rows.Err()."
+        zh-CN: "循环结束后 return rows.Err()。"
+    examples:
+      positive:
+        - code: |
+            for rows.Next() {
+              rows.Scan(&id)
+            }
+      negative:
+        - code: |
+            for rows.Next() {
+              rows.Scan(&id)
+            }
+            if err := rows.Err(); err != nil { return err }
+
+  - id: go.security.math-rand-secret
+    title: { en: "math/rand used for a secret", zh-CN: "用 math/rand 生成秘密" }
+    category: security
+    dimension: security
+    applies: { languages: [go] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\brand\.Intn\s*\('
+    question:
+      question: "Do the added lines in `hunk` use math/rand Intn where the result is used as a token or secret?"
+      focus: "Lines marked with + that call rand.Intn"
+      true: { what: "rand.Intn is used to build a value that looks like a token" }
+      false: { what: "A cryptographic generator such as crypto/rand is used" }
+    severity:
+      levels: ["A non-secret shuffle", "A token or identifier an attacker can guess"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} uses math/rand to produce a value that may be a secret."
+        why: "math/rand is predictable, so the value can be guessed."
+      zh-CN:
+        body: "第 {{line}} 行用 math/rand 生成了可能当作密钥的值。"
+        why: "math/rand 是可预测的，这个值可以被猜出来。"
+    fix:
+      hint:
+        en: "Use crypto/rand for tokens, passwords, and session ids."
+        zh-CN: "令牌、密码和 session id 改用 crypto/rand。"
+    references: ["CWE-338"]
+    examples:
+      positive:
+        - code: |
+            token := rand.Intn(1 << 20)
+      negative:
+        - code: |
+            n, err := rand.Int(rand.Reader, big.NewInt(1 << 20))

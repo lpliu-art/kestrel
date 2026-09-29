@@ -1,0 +1,107 @@
+classDiagram
+    direction LR
+    class KestrelPlugin {
+        +apiVersion: 1
+        +id: string
+        +name: string
+        +version: string
+        +languages: LanguageDefinition[]
+        +rulePacks?: RulePackRef[]
+        +context?: ContextProvider
+        +facts?: FactsProvider
+        +staticTools?: StaticToolAdapter[]
+        +fileClasses?: FileClasses
+        +setup?(ctx) void
+    }
+    class LanguageDefinition {
+        +id: string
+        +extensions: string[]
+        +filenames?: string[]
+        +shebangs?: string[]
+        +sniff?(head) boolean
+        +grammar?: GrammarRef
+        +embedded?: EmbeddedExtractor
+    }
+    class ContextProvider {
+        <<interface>>
+        +build(input: ContextInput) UnitContext
+    }
+    class FactsProvider {
+        <<interface>>
+        +detect(repo) string[]
+    }
+    class StaticToolAdapter {
+        <<interface>>
+        +id: string
+        +languages: string[]
+        +detect(repo) boolean
+        +run?(ctx) SarifLog
+    }
+    class RulePack {
+        +pack: string
+        +version: string
+        +rules: Rule[]
+    }
+    class Rule {
+        +id: string
+        +title: I18nText
+        +category: Category
+        +dimension: Dimension
+        +applies: Applies
+        +trigger: Trigger
+        +context: ContextNeed[]
+        +question: NoulSpec
+        +guards: GuardSpec[]
+        +severity: SeveritySpec
+        +thresholds?: Thresholds
+        +locate: trigger|choose|unit
+        +slots?: SlotSpec
+        +message: I18nTemplate
+        +fix?: FixSpec
+        +mock?: MockHints
+        +examples: Examples
+    }
+    class Trigger {
+        +kind: regex|treesitter|always|removed|sarif
+        +on: added|removed|both
+        +pattern?: string
+        +query?: string
+    }
+    class QuestionCompiler {
+        +compilePass1(unit, rules) JevRequest
+        +compilePass2(unit, fired) JevRequest
+    }
+    class JevProvider {
+        <<interface>>
+        +name: string
+        +isAI: boolean
+        +ask(req: JevRequest) JevResponse
+    }
+    class TypeSafeProvider
+    class HttpProvider
+    class MockProvider
+    class ReplayProvider
+    class Finding {
+        +ruleId: string
+        +severity: Severity
+        +band: report|uncertain|drop
+        +probability: number
+        +pEff: number
+        +location: Location
+        +message: string
+    }
+
+    KestrelPlugin "1" o-- "1..*" LanguageDefinition
+    KestrelPlugin "1" o-- "0..*" RulePack
+    KestrelPlugin ..> ContextProvider
+    KestrelPlugin ..> FactsProvider
+    KestrelPlugin ..> StaticToolAdapter
+    RulePack "1" *-- "1..*" Rule
+    Rule *-- Trigger
+    QuestionCompiler ..> Rule : compiles
+    QuestionCompiler ..> JevProvider : sends via
+    JevProvider <|.. TypeSafeProvider
+    JevProvider <|.. HttpProvider
+    JevProvider <|.. MockProvider
+    JevProvider <|.. ReplayProvider
+    Rule ..> Finding : produces (via judge)

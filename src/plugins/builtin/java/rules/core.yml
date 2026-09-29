@@ -1,0 +1,236 @@
+pack: java-core
+version: 1.0.0
+rules:
+  - id: java.security.sql-concat
+    title: { en: "SQL built by concatenation", zh-CN: "通过拼接构造 SQL" }
+    category: security
+    dimension: security
+    applies: { languages: [java] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'execute(?:Query|Update)?\s*\(\s*[^)\n]*\+'
+    question:
+      question: "Do the added lines in `hunk` pass SQL built by concatenation to Statement.execute?"
+      focus: "Lines marked with + that call execute, executeQuery, or executeUpdate with a plus sign"
+      true: { what: "SQL text passed to execute contains a concatenated value" }
+      false: { what: "A prepared statement binds the value" }
+    severity:
+      levels: ["Constant SQL", "Internal input", "Request input"]
+      map: [medium, high, critical]
+      default: high
+      min: medium
+    message:
+      en:
+        body: "Line {{line}} builds SQL by concatenation; this may allow SQL injection."
+        why: "The database parses the concatenated value as SQL."
+      zh-CN:
+        body: "第 {{line}} 行通过拼接构造 SQL，可能导致 SQL 注入。"
+        why: "数据库会把拼接进去的值当作 SQL 解析。"
+    fix:
+      hint:
+        en: "Use a PreparedStatement and bind the value with setString."
+        zh-CN: "改用 PreparedStatement，并用 setString 绑定参数。"
+    references: ["CWE-89"]
+    examples:
+      positive:
+        - code: |
+            stmt.executeQuery("SELECT * FROM users WHERE id=" + id);
+      negative:
+        - code: |
+            ps.setString(1, id);
+
+  - id: java.security.deserialization
+    title: { en: "Java deserialization of external data", zh-CN: "反序列化外部数据" }
+    category: security
+    dimension: security
+    applies: { languages: [java] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\bnew\s+ObjectInputStream\s*\(|\.readObject\s*\('
+    question:
+      question: "Do the added lines in `hunk` deserialize objects with ObjectInputStream or readObject?"
+      focus: "Lines marked with + that construct ObjectInputStream or call readObject"
+      true: { what: "readObject is used on a stream that may contain external data" }
+      false: { what: "No Java object deserialization is added" }
+    severity:
+      levels: ["A trusted local file", "Data from the network"]
+      map: [high, critical]
+      default: critical
+      min: high
+    message:
+      en:
+        body: "Line {{line}} deserializes a Java object from a stream."
+        why: "readObject can execute code controlled by the bytes on the stream."
+      zh-CN:
+        body: "第 {{line}} 行从流中反序列化 Java 对象。"
+        why: "readObject 可能执行流中字节所控制的代码。"
+    fix:
+      hint:
+        en: "Reject Java serialization at the boundary and use an explicit schema such as JSON."
+        zh-CN: "在边界上拒绝 Java 序列化，改用 JSON 这类显式格式。"
+    references: ["CWE-502"]
+    examples:
+      positive:
+        - code: |
+            ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+            Object value = in.readObject();
+      negative:
+        - code: |
+            String line = reader.readLine();
+
+  - id: java.exception.swallowed
+    title: { en: "Swallowed exception", zh-CN: "吞掉的异常" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [java] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'catch\s*\([^)]+\)\s*\{\s*(?:\}|[^}]*printStackTrace\s*\(\s*\)\s*;\s*\})'
+    question:
+      question: "Do the added lines in `hunk` catch an exception and either ignore it or only print the stack trace?"
+      focus: "Lines marked with + that contain an empty catch or printStackTrace"
+      true: { what: "The catch block is empty or only calls printStackTrace" }
+      false: { what: "The catch rethrows or returns a handled result" }
+    severity:
+      levels: ["A cleanup path", "An operation whose failure is hidden"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} catches an exception without handling it."
+        why: "Empty catches and printStackTrace hide failures from callers."
+      zh-CN:
+        body: "第 {{line}} 行捕获异常后没有真正处理。"
+        why: "空 catch 和只调用 printStackTrace 会让调用方看不到失败。"
+    fix:
+      hint:
+        en: "Rethrow a wrapped exception or handle it and return a result."
+        zh-CN: "包装后重新抛出，或者处理完并返回结果。"
+    examples:
+      positive:
+        - code: |
+            try { run(); } catch (Exception e) { }
+      negative:
+        - code: |
+            try { run(); } catch (Exception e) { throw e; }
+
+  - id: java.resource.no-try-with-resources
+    title: { en: "Resource opened outside try-with-resources", zh-CN: "资源没有使用 try-with-resources" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [java] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'new\s+(?:FileInputStream|FileOutputStream|BufferedReader)\s*\('
+    question:
+      question: "Do the added lines in `hunk` open a stream without try-with-resources?"
+      focus: "Lines marked with + that construct FileInputStream, FileOutputStream, or BufferedReader"
+      true: { what: "A closable resource is constructed outside try-with-resources" }
+      false: { what: "The resource is opened in a try-with-resources statement" }
+    severity:
+      levels: ["A short-lived tool", "A server path that can leak descriptors"]
+      map: [low, medium]
+      default: medium
+    mock:
+      negative: 'try\s*\('
+    message:
+      en:
+        body: "Line {{line}} opens a stream outside try-with-resources."
+        why: "If an exception is thrown before close, the descriptor leaks."
+      zh-CN:
+        body: "第 {{line}} 行打开流时没有使用 try-with-resources。"
+        why: "如果在 close 之前抛出异常，文件描述符会泄漏。"
+    fix:
+      hint:
+        en: "Open the stream in try-with-resources so it always closes."
+        zh-CN: "把流放进 try-with-resources，确保一定会关闭。"
+    examples:
+      positive:
+        - code: |
+            FileInputStream in = new FileInputStream(path);
+      negative:
+        - code: |
+            try (FileInputStream in = new FileInputStream(path)) {
+                in.read();
+            }
+
+  - id: java.concurrency.unsafe-shared-state
+    title: { en: "Unsafe shared mutable static", zh-CN: "不安全的共享可变静态状态" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [java] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'static\s+(?:final\s+)?(?:SimpleDateFormat|HashMap|Hashtable)\b'
+    question:
+      question: "Do the added lines in `hunk` store a SimpleDateFormat or HashMap in a static field that threads can share?"
+      focus: "Lines marked with + that declare a static SimpleDateFormat or HashMap"
+      true: { what: "A static field holds a non-thread-safe mutable object" }
+      false: { what: "The type is thread-safe, such as DateTimeFormatter or ConcurrentHashMap" }
+    severity:
+      levels: ["A field that is never shared", "A field used by request threads"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} shares a mutable SimpleDateFormat or HashMap through a static field."
+        why: "Those types are not thread-safe, so concurrent requests can corrupt them."
+      zh-CN:
+        body: "第 {{line}} 行用静态字段共享可变的 SimpleDateFormat 或 HashMap。"
+        why: "这些类型不是线程安全的，并发请求可能把状态写坏。"
+    fix:
+      hint:
+        en: "Use DateTimeFormatter or ConcurrentHashMap, or keep the object on the stack."
+        zh-CN: "改用 DateTimeFormatter 或 ConcurrentHashMap，或者把对象留在栈上。"
+    examples:
+      positive:
+        - code: |
+            static SimpleDateFormat FMT = new SimpleDateFormat("yyyy");
+      negative:
+        - code: |
+            static final DateTimeFormatter FMT = DateTimeFormatter.ISO_INSTANT;
+
+  - id: java.spring.transactional-self-invocation
+    title: { en: "Transactional self-invocation", zh-CN: "同类内部调用事务方法" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [java]
+      frameworks: [spring]
+    trigger:
+      kind: regex
+      on: added
+      pattern: '@Transactional[\s\S]{0,400}this\.\w+\s*\('
+    question:
+      question: "Do the added lines in `hunk` call a method on this from a class that uses @Transactional?"
+      focus: "Lines marked with + that combine @Transactional and this.method()"
+      true: { what: "A @Transactional method is invoked through this" }
+      false: { what: "The call goes through an injected Spring bean" }
+    severity:
+      levels: ["A call that does not need a new transaction", "A call that expected a transaction proxy"]
+      map: [medium, high]
+      default: high
+    message:
+      en:
+        body: "Line {{line}} calls a transactional method through this, which skips the Spring proxy."
+        why: "Self-invocation does not start the transaction the annotation describes."
+      zh-CN:
+        body: "第 {{line}} 行通过 this 调用事务方法，Spring 代理不会生效。"
+        why: "同类自调用不会按注解开启事务。"
+    fix:
+      hint:
+        en: "Move the method to another bean and inject it, or call it through AopContext if that is already the project pattern."
+        zh-CN: "把方法挪到另一个 bean 再注入调用；只有项目已经采用 AopContext 时才走那条路。"
+    examples:
+      positive:
+        - code: |
+            @Transactional
+            public void outer() { this.inner(); }
+      negative:
+        - code: |
+            public void outer() { service.inner(); }

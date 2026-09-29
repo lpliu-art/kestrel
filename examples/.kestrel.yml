@@ -1,0 +1,11 @@
+version: 1
+profile: balanced
+output:
+  language: zh-CN
+  formats: [terminal]
+jev:
+  provider: mock
+  model: jev-1.13.0
+gate:
+  failOn: high
+  minProbability: 0.8

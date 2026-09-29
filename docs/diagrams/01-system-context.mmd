@@ -1,0 +1,27 @@
+flowchart LR
+    dev["👩‍💻 Developer<br/>(terminal / git hook)"]
+    agent["🤖 Host coding agent<br/>Claude Code · Codex · Cursor<br/>(skill / slash command)"]
+    ci["⚙️ CI runner<br/>GitHub Actions"]
+
+    subgraph jd["Kestrel (npm package, Node ≥ 22)"]
+        cli["kestrel CLI<br/>review · rules · explain · github post"]
+    end
+
+    git[("Local Git repo<br/>diff · merge-base · files")]
+    jev["TypeSafe Jev API<br/>POST /v1/systemone<br/>jev-1.13.0"]
+    llm["Optional LLM<br/>OpenAI / Anthropic compatible<br/>(narration only)"]
+    gh["GitHub REST API<br/>PR reviews · comments"]
+    scan["GitHub Code Scanning<br/>(SARIF upload)"]
+    tools["Static tools output<br/>ESLint · Ruff · golangci-lint · Semgrep<br/>(SARIF files)"]
+
+    dev -->|kestrel review| cli
+    agent -->|"kestrel review --format json --audience agent"| cli
+    ci -->|"composite action / npx kestrel-review"| cli
+    cli -->|read diff & sources| git
+    cli -->|"state + typed questions<br/>(redacted hunks)"| jev
+    jev -->|"Choice / Score / Noul<br/>+ calibrated probabilities"| cli
+    cli -.->|"flagged findings only<br/>(opt-in)"| llm
+    cli -->|inline comments + sticky summary| gh
+    cli -->|kestrel.sarif| scan
+    tools -.->|"--sarif-in"| cli
+    cli -->|"JSON findings → agent writes prose & fixes"| agent

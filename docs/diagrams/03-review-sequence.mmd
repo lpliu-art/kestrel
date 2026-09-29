@@ -1,0 +1,43 @@
+sequenceDiagram
+    autonumber
+    actor U as User / Agent / CI
+    participant C as CLI (review)
+    participant G as git/ + select/
+    participant P as plugins/ + rules/
+    participant B as units/ + security/
+    participant J as judge/
+    participant X as jev/ (cache · limiter)
+    participant T as TypeSafe Jev API
+    participant R as render/
+
+    U->>C: kestrel review --from main
+    C->>G: diff(merge-base..HEAD)
+    G-->>C: ChangedFile[] (+ skipped with reasons)
+    C->>P: detect language, facts, applicable rule packs
+    C->>B: build review units (hunk windows, enclosing ctx)
+    B->>B: redact secrets, add injection probe
+    B->>P: run triggers per unit
+    P-->>J: units × triggered rules (+ deterministic anchors)
+    par for each unit (concurrency 8)
+        J->>X: Pass 1 request (dims + r.* + g.* + s.* + u.injection)
+        alt cache hit (pinned model)
+            X-->>J: cached answers
+        else miss
+            X->>T: POST /v1/systemone
+            T-->>X: answers (noul / score / choice + confidence)
+            X-->>J: answers + usage
+        end
+    end
+    J->>J: p_eff = p × Π(1 − p_guard), bands by profile thresholds
+    par only rules ≥ τ_uncertain without anchor
+        J->>X: Pass 2 request (loc.* Choice over real line ids + none)
+        X->>T: POST /v1/systemone
+        T-->>X: chosen line + confidence
+        X-->>J: answers
+    end
+    J->>J: dedupe · file risk · deep-review list · verdict (code-only gate)
+    opt --llm enabled (P2)
+        J->>J: narrate top-N via LLM, then verify with Jev (addresses / unrelated / contradicts)
+    end
+    J->>R: findings + verdict + stats
+    R-->>U: terminal / JSON / SARIF / Markdown (exit 1 if gate fails)

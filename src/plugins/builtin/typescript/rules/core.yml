@@ -1,0 +1,321 @@
+pack: typescript-core
+version: 1.0.0
+rules:
+  - id: ts.security.sql-string-concat
+    title: { en: "SQL built by string concatenation", zh-CN: "通过字符串拼接构造 SQL" }
+    category: security
+    dimension: security
+    applies: { languages: [typescript, tsx, javascript] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '(["''])[^"''\n]*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^"''\n]*\1\s*\+|`[^`\n]*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^`\n]*\$\{'
+    question:
+      question: "Do the added lines in `hunk` build a SQL statement by concatenating or interpolating a value that is not a constant?"
+      focus: "Lines marked with + that pass a string to a database query or execute function"
+      ignore: ["Removed lines marked with -"]
+      true:
+        what: "A non-constant value is joined into SQL text that is executed"
+        examples: ['"SELECT * FROM t WHERE id=" + id']
+      false:
+        what: "SQL text is constant and values are passed as bound parameters, or no SQL is executed"
+        examples: ["db.query('SELECT * FROM t WHERE id = $1', [id])"]
+    guards:
+      - id: validated
+        question: "Is the concatenated value in `hunk` restricted to a safe allowlist or numeric type by code visible in `enclosing` before it is used?"
+    severity:
+      levels:
+        - "The value comes only from trusted constants"
+        - "The value comes from internal callers"
+        - "The value can come from request input"
+        - "The value comes directly from request input in a public endpoint"
+      map: [low, medium, high, critical]
+      default: high
+      min: medium
+    mock:
+      guardPositive: 'Number\(|parseInt\('
+    message:
+      en:
+        body: "SQL is built by concatenating a non-constant value at line {{line}}; this may allow SQL injection."
+        why: "Attackers can alter the query when the value comes from user input."
+      zh-CN:
+        body: "第 {{line}} 行通过拼接非常量值构造 SQL，可能导致 SQL 注入。"
+        why: "当该值来自用户输入时，攻击者可以篡改查询语义。"
+    fix:
+      hint:
+        en: "Use a parameterized query, e.g. `db.query('... WHERE id = $1', [id])`."
+        zh-CN: "改用参数化查询，例如 `db.query('... WHERE id = $1', [id])`。"
+    references: ["CWE-89"]
+    examples:
+      positive:
+        - code: |
+            const sql = "SELECT * FROM users WHERE id = " + req.query.id;
+            await db.query(sql);
+      negative:
+        - code: |
+            await db.query("SELECT * FROM users WHERE id = $1", [req.query.id]);
+
+  - id: ts.security.command-injection
+    title: { en: "Command built by concatenation", zh-CN: "通过拼接构造命令" }
+    category: security
+    dimension: security
+    applies: { languages: [typescript, tsx, javascript] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\b(?:exec|execSync)\s*\(\s*(?:`[^`]*\$\{|["''][^"'']*["'']\s*\+|[A-Za-z_][\w.]*\s*\+)'
+    question:
+      question: "Do the added lines in `hunk` pass a command string built from a non-constant value to exec or execSync?"
+      focus: "Lines marked with + that call child_process exec or execSync"
+      true: { what: "A variable or concatenation is passed to exec or execSync" }
+      false: { what: "The command is a constant, or execFile is used with an argument array" }
+    severity:
+      levels: ["Constant command", "Internal input", "External input", "Request input"]
+      map: [low, medium, high, critical]
+      default: high
+      min: medium
+    message:
+      en:
+        body: "Line {{line}} passes a concatenated command to exec; this may allow command injection."
+        why: "A shell will interpret metacharacters in the concatenated value."
+      zh-CN:
+        body: "第 {{line}} 行把拼接出的命令交给 exec，可能导致命令注入。"
+        why: "Shell 会解释拼接值里的元字符。"
+    fix:
+      hint:
+        en: "Use execFile or spawn with an argument array and no shell."
+        zh-CN: "改用 execFile 或 spawn，把参数放进数组，不要经过 shell。"
+    references: ["CWE-78"]
+    examples:
+      positive:
+        - code: |
+            exec("ls " + userInput);
+      negative:
+        - code: |
+            execFile("ls", [userInput]);
+
+  - id: ts.security.dynamic-code
+    title: { en: "Dynamic code execution", zh-CN: "动态执行代码" }
+    category: security
+    dimension: security
+    applies: { languages: [typescript, tsx, javascript] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\beval\s*\(|\bnew\s+Function\s*\(|\bsetTimeout\s*\(\s*["'']'
+    question:
+      question: "Do the added lines in `hunk` execute a string as code with eval, Function, or a string timer?"
+      focus: "Lines marked with + that call eval, new Function, or setTimeout with a string"
+      true: { what: "A string is compiled or evaluated as code" }
+      false: { what: "No string is evaluated as code" }
+    severity:
+      levels: ["Constant code", "Internal code", "External code"]
+      map: [medium, high, critical]
+      default: high
+      min: medium
+    message:
+      en:
+        body: "Line {{line}} evaluates a string as code."
+        why: "Dynamic code execution lets untrusted input run with the process privileges."
+      zh-CN:
+        body: "第 {{line}} 行把字符串当作代码执行。"
+        why: "动态执行会让不可信输入获得进程权限。"
+    fix:
+      hint:
+        en: "Remove eval and express the behavior as normal code or a safe parser."
+        zh-CN: "去掉 eval，用普通代码或安全的解析器表达同样的行为。"
+    references: ["CWE-95"]
+    examples:
+      positive:
+        - code: |
+            const result = eval(userCode);
+      negative:
+        - code: |
+            const result = JSON.parse(text);
+
+  - id: ts.security.xss-html-sink
+    title: { en: "HTML written from a non-constant", zh-CN: "把非常量写入 HTML" }
+    category: security
+    dimension: security
+    applies: { languages: [typescript, tsx, javascript] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\.innerHTML\s*=|\.outerHTML\s*=|\bdocument\.write\s*\(|dangerouslySetInnerHTML'
+    question:
+      question: "Do the added lines in `hunk` write a non-constant value into an HTML sink?"
+      focus: "Lines marked with + that assign innerHTML, outerHTML, document.write, or dangerouslySetInnerHTML"
+      true: { what: "An HTML sink receives a value that is not a constant" }
+      false: { what: "No HTML sink is written, or only textContent is used" }
+    severity:
+      levels: ["Constant markup", "Internal markup", "User-controlled markup"]
+      map: [medium, high, critical]
+      default: high
+      min: medium
+    message:
+      en:
+        body: "Line {{line}} writes a non-constant value into an HTML sink; this may allow XSS."
+        why: "The browser will parse the value as HTML."
+      zh-CN:
+        body: "第 {{line}} 行把非常量写入 HTML sink，可能导致 XSS。"
+        why: "浏览器会把该值当作 HTML 解析。"
+    fix:
+      hint:
+        en: "Use textContent or a framework escape hatch that escapes by default."
+        zh-CN: "改用 textContent，或使用默认转义的框架渲染。"
+    references: ["CWE-79"]
+    examples:
+      positive:
+        - code: |
+            el.innerHTML = userInput;
+      negative:
+        - code: |
+            el.textContent = userInput;
+
+  - id: ts.correctness.floating-promise
+    title: { en: "Floating promise", zh-CN: "未处理的 Promise" }
+    category: correctness
+    dimension: correctness
+    applies: { languages: [typescript, tsx, javascript] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '^(?!\s*(?:await|return|void)\b).*\b(?:fetch|axios)\s*\('
+    question:
+      question: "Do the added lines in `hunk` start a promise with fetch or axios and ignore the result?"
+      focus: "Lines marked with + that call fetch or axios without await, return, or void"
+      true: { what: "The promise is neither awaited nor returned" }
+      false: { what: "The promise is awaited, returned, or intentionally voided" }
+    severity:
+      levels: ["Background request that is allowed to float", "Request whose failure is ignored"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} starts a promise and does not await or return it."
+        why: "Rejections become unhandled and later code races the request."
+      zh-CN:
+        body: "第 {{line}} 行发起了 Promise，但没有 await 或 return。"
+        why: "拒绝会变成未处理异常，后续代码也会和请求竞态。"
+    fix:
+      hint:
+        en: "Await the call, return it, or mark a deliberate fire-and-forget with void and a catch."
+        zh-CN: "await 或 return 这个调用；如果确实不等待，用 void 并加上 catch。"
+    examples:
+      positive:
+        - code: |
+            fetch("/api/users");
+      negative:
+        - code: |
+            await fetch("/api/users");
+
+  - id: ts.correctness.async-foreach
+    title: { en: "async callback in forEach", zh-CN: "forEach 中使用 async" }
+    category: correctness
+    dimension: correctness
+    applies: { languages: [typescript, tsx, javascript] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\.forEach\s*\(\s*async\b'
+    question:
+      question: "Do the added lines in `hunk` pass an async callback to forEach?"
+      focus: "Lines marked with + that call forEach with async"
+      true: { what: "forEach is given an async callback" }
+      false: { what: "Iteration uses a for loop or for-await that handles the promise" }
+    severity:
+      levels: ["The callback does not need to be awaited", "The callback is expected to run in order"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} uses forEach with an async callback, which does not wait."
+        why: "forEach ignores the returned promise, so failures and ordering are lost."
+      zh-CN:
+        body: "第 {{line}} 行在 forEach 里使用了 async 回调，调用方不会等待它。"
+        why: "forEach 会丢掉返回的 Promise，失败和顺序都无法保证。"
+    fix:
+      hint:
+        en: "Use a for...of loop with await, or Promise.all when parallelism is intended."
+        zh-CN: "改用 for...of 加 await；如果就是要并行，用 Promise.all。"
+    examples:
+      positive:
+        - code: |
+            items.forEach(async (item) => { await save(item); });
+      negative:
+        - code: |
+            for (const item of items) { await save(item); }
+
+  - id: ts.reliability.swallowed-error
+    title: { en: "Swallowed error", zh-CN: "吞掉的异常" }
+    category: reliability
+    dimension: reliability
+    applies: { languages: [typescript, tsx, javascript] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'catch\s*\([^)]*\)\s*\{\s*\}'
+    question:
+      question: "Do the added lines in `hunk` catch an error and discard it?"
+      focus: "Lines marked with + that contain an empty catch"
+      true: { what: "A catch block is empty" }
+      false: { what: "The catch rethrows or handles the error" }
+    severity:
+      levels: ["A best-effort cleanup", "An error that hides a failed operation"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} catches an error and discards it."
+        why: "Swallowed errors hide failures from callers and from logs."
+      zh-CN:
+        body: "第 {{line}} 行捕获异常后直接丢弃。"
+        why: "被吞掉的异常会让调用方和日志都看不到失败。"
+    fix:
+      hint:
+        en: "Rethrow, return a result, or log with enough context to act on."
+        zh-CN: "重新抛出、返回结果，或带上足够上下文再记录。"
+    examples:
+      positive:
+        - code: |
+            try { await run(); } catch (e) {}
+      negative:
+        - code: |
+            try { await run(); } catch (e) { throw e; }
+
+  - id: ts.types.unsafe-escape
+    title: { en: "Unsafe type escape", zh-CN: "不安全的类型逃逸" }
+    category: correctness
+    dimension: correctness
+    applies: { languages: [typescript, tsx] }
+    trigger:
+      kind: regex
+      on: added
+      pattern: '\bas\s+any\b|@ts-ignore|@ts-expect-error'
+    question:
+      question: "Do the added lines in `hunk` silence the type checker with as any, ts-ignore, or ts-expect-error?"
+      focus: "Lines marked with + that contain as any or a ts-ignore comment"
+      true: { what: "The type checker is silenced without a narrow justification" }
+      false: { what: "The code stays inside the type system" }
+    severity:
+      levels: ["A local cast with a comment", "A cast that hides an unsafe boundary"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} escapes the type checker."
+        why: "as any and ts-ignore hide defects that the compiler could have caught."
+      zh-CN:
+        body: "第 {{line}} 行绕过了类型检查。"
+        why: "as any 和 ts-ignore 会藏起编译器本来能发现的问题。"
+    fix:
+      hint:
+        en: "Narrow the type, or explain a ts-expect-error with the specific error code."
+        zh-CN: "收窄类型；如果必须用 ts-expect-error，写上具体错误码和原因。"
+    examples:
+      positive:
+        - code: |
+            const value = input as any;
+      negative:
+        - code: |
+            const value = input as string;

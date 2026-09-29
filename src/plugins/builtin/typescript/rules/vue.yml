@@ -1,0 +1,90 @@
+pack: typescript-vue
+version: 1.0.0
+rules:
+  - id: vue.security.v-html
+    title: { en: "v-html binding", zh-CN: "v-html 绑定" }
+    category: security
+    dimension: security
+    applies:
+      languages: [vue]
+      frameworks: [vue]
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'v-html\s*='
+    question:
+      question: "Do the added lines in `hunk` bind v-html to a value that is not a constant?"
+      focus: "Lines marked with + that contain v-html"
+      true: { what: "v-html is bound to content that may include user input" }
+      false: { what: "HTML is not injected, or only text interpolation is used" }
+    severity:
+      levels: ["Constant HTML", "Internal HTML", "User-controlled HTML"]
+      map: [medium, high, critical]
+      default: high
+      min: medium
+    message:
+      en:
+        body: "Line {{line}} binds v-html, which injects raw HTML."
+        why: "v-html does not escape, so untrusted content becomes XSS."
+      zh-CN:
+        body: "第 {{line}} 行使用了 v-html，会注入原始 HTML。"
+        why: "v-html 不会转义，不可信内容会变成 XSS。"
+    fix:
+      hint:
+        en: "Prefer text interpolation, or sanitize the HTML with a reviewed allowlist."
+        zh-CN: "优先用文本插值；如果必须渲染 HTML，用经过审查的白名单净化。"
+    references: ["CWE-79"]
+    examples:
+      positive:
+        - language: vue
+          path: src/App.vue
+          code: |
+            <div v-html="userHtml"></div>
+      negative:
+        - language: vue
+          path: src/App.vue
+          code: |
+            <div>{{ userHtml }}</div>
+
+  - id: vue.reactivity.lost
+    title: { en: "Lost Vue reactivity", zh-CN: "丢失 Vue 响应性" }
+    category: correctness
+    dimension: correctness
+    applies:
+      languages: [vue, typescript, javascript]
+      frameworks: [vue]
+    trigger:
+      kind: regex
+      on: added
+      pattern: 'const\s*\{[^}]+\}\s*=\s*(?:props|toRefs\s*\(|reactive\s*\()'
+    question:
+      question: "Do the added lines in `hunk` destructure props or a reactive object and lose reactivity?"
+      focus: "Lines marked with + that destructure props, toRefs, or reactive"
+      true: { what: "A reactive object is destructured into plain bindings" }
+      false: { what: "The value stays inside computed, toRef, or the props object" }
+    severity:
+      levels: ["A one-time read", "A binding the template expects to stay reactive"]
+      map: [low, medium]
+      default: medium
+    message:
+      en:
+        body: "Line {{line}} destructures a reactive value, which drops Vue reactivity."
+        why: "The destructured binding will not update when the source changes."
+      zh-CN:
+        body: "第 {{line}} 行解构了响应式对象，Vue 的响应性会丢失。"
+        why: "解构出来的绑定不会随源数据更新。"
+    fix:
+      hint:
+        en: "Use toRef(props, 'count') or computed(() => props.count)."
+        zh-CN: "改用 toRef(props, 'count') 或 computed(() => props.count)。"
+    examples:
+      positive:
+        - language: vue
+          path: src/Counter.vue
+          code: |
+            const { count } = props;
+      negative:
+        - language: vue
+          path: src/Counter.vue
+          code: |
+            const count = computed(() => props.count);

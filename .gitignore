@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.kestrel/cache/
+.kestrel/sessions/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
