@@ -16,12 +16,27 @@ const require = createRequire(join(root, "package.json"));
 const outDir = join(root, "dist/sea");
 mkdirSync(outDir, { recursive: true });
 
-const bundle = spawnSync("npx", ["tsup", "--config", "tsup.sea.config.ts"], {
-  cwd: root,
-  stdio: "inherit",
-  env: { ...process.env },
-});
-if (bundle.status !== 0) process.exit(bundle.status ?? 1);
+function run(command, args, extra = {}) {
+  const result = spawnSync(command, args, {
+    cwd: root,
+    stdio: "inherit",
+    env: { ...process.env },
+    // npx is npx.cmd on Windows and does not spawn without a shell.
+    shell: process.platform === "win32" && command === "npx",
+    ...extra,
+  });
+  if (result.error) {
+    process.stderr.write(`${command} failed: ${result.error.message}\n`);
+  }
+  if (result.status !== 0) {
+    if (result.stderr) process.stderr.write(String(result.stderr));
+    if (result.stdout) process.stderr.write(String(result.stdout));
+    process.exit(result.status ?? 1);
+  }
+  return result;
+}
+
+run("npx", ["tsup", "--config", "tsup.sea.config.ts"]);
 
 const grammars = [
   ["tree-sitter.wasm", require.resolve("web-tree-sitter/tree-sitter.wasm")],
@@ -77,36 +92,26 @@ const config = {
 };
 writeFileSync(join(outDir, "sea-config.json"), JSON.stringify(config, null, 2));
 
-const sea = spawnSync(
-  process.execPath,
-  ["--experimental-sea-config", join(outDir, "sea-config.json")],
-  {
-    cwd: root,
-    stdio: "inherit",
-  },
-);
-if (sea.status !== 0) process.exit(sea.status ?? 1);
+run(process.execPath, [
+  "--experimental-sea-config",
+  join(outDir, "sea-config.json"),
+]);
 
 const binaryName = process.platform === "win32" ? "kestrel.exe" : "kestrel";
 const binary = join(outDir, binaryName);
 copyFileSync(process.execPath, binary);
-const postject = spawnSync(
-  "npx",
-  [
-    "--yes",
-    "postject",
-    binary,
-    "NODE_SEA_BLOB",
-    join(outDir, "sea-prep.blob"),
-    "--sentinel-fuse",
-    "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2",
-    ...(process.platform === "darwin"
-      ? ["--macho-segment-name", "NODE_SEA"]
-      : []),
-  ],
-  { cwd: root, stdio: "inherit" },
-);
-if (postject.status !== 0) process.exit(postject.status ?? 1);
+run("npx", [
+  "--yes",
+  "postject",
+  binary,
+  "NODE_SEA_BLOB",
+  join(outDir, "sea-prep.blob"),
+  "--sentinel-fuse",
+  "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2",
+  ...(process.platform === "darwin"
+    ? ["--macho-segment-name", "NODE_SEA"]
+    : []),
+]);
 if (process.platform !== "win32") chmodSync(binary, 0o755);
 const payload = join(outDir, "payload");
 mkdirSync(payload, { recursive: true });
@@ -120,13 +125,7 @@ cpSync(
   },
 );
 
-const version = spawnSync(binary, ["--version"], { encoding: "utf8" });
-if (version.status !== 0) {
-  process.stderr.write(
-    version.stderr || version.stdout || "sea binary failed\n",
-  );
-  process.exit(version.status ?? 1);
-}
+const version = run(binary, ["--version"], { stdio: "pipe", encoding: "utf8" });
 process.stdout.write(
   `sea ${binary} ${version.stdout.trim()} binary=${statSync(binary).size} wasm=${wasmBytes}\n`,
 );
